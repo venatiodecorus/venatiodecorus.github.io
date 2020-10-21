@@ -6,11 +6,13 @@ comments: false
 
 I'm a developer interested in the following technologies:
 
-- WebGL/shaders
+- WebGL/shaders (check out my [Cables.gl profile](https://cables.gl/user/venatiodecorus))
 - Social media
 - IRC
 
 Maybe I'll have some projects here some day.
+
+
 
 <!-- ### my history
 
