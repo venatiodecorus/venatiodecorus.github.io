@@ -13,27 +13,26 @@ I'm going to cover three main topics:
 
 ## VPN
 
-Whenever you connect to a website or any internet service, that service becomes aware of your [IP Address](https://en.wikipedia.org/wiki/IP_address). The service needs to know your IP address to know where to send data back to. If you're using a residential internet connection, this IP address is directly associated with your account. This allows government entities to request your information from your ISP. By using a shared VPN, the IP address the services receive cannot be directly linked back to you.
+Whenever you connect to a website or any internet service, that service becomes aware of your [IP Address](https://en.wikipedia.org/wiki/IP_address). The service needs to know your IP address to know where to send data back to. If you're using a residential internet connection, this IP address is directly associated with your account. This allows government entities to request your information from your ISP. Your ISP could also potentially sell your browsing data to advertisers. ISPs have also been known to inject their own code into pages.
 
-A VPN also provides a layer of encryption which prevents your ISP from reading any of your data. Many sites nowadays support HTTPS which also encrypts your traffic, but its possible for ISPs to man-in-the-middle your connection and impersonate sites. A VPN allows you to bypass a potentially untrustworthy ISP. ISPs have also been known to sell browsing data to advertisers.
+By using a shared VPN, the IP address the services receive cannot be directly linked back to you. A VPN also provides a layer of encryption which prevents your ISP from reading any of your data. Now when using a VPN service, you are essentially moving your trust from your ISP to the VPN service. However, VPN services are often rated according to their trustworthiness and they have a reputation to maintain versus an ISP that sells data as part of its standard business model. So it is important to use a VPN that is known to be trustworthy.
 
 I like to use [Mullvad](https://mullvad.net) as a VPN. Mullvad uses the WireGuard protocol which is popular these days for being secure and performant. Mullvad offers their own application for every major operating system (including iOS and Android). You can also integrate their service with your existing OpenVPN or WireGuard setup. Mullvad costs €5 ($6.06) a month, which is a pretty good deal.
 
-Mullvad does not collect any personal information beyond what is required for payment, and offers flexible payment offers including Bitcoin to retain your anonymity. They don't require an email.
+Mullvad does not collect any personal information beyond what is required for payment, and offers flexible payment offers including Bitcoin to retain your anonymity. They don't require an email. They also have a good reputation within the information security community.
 
 By default the Mullvad app will route all your internet traffic through the VPN. But they also have a SOCKS5 proxy on their network which allows you to utilize an individual application's settings to route its traffic through the VPN. 
 
 <div align="center">
 {{< figure src="mullvad-payments.png" width="500" caption="Mullvad VPN payment options" >}} 
 </div>
-<!-- {{< image src="/img/mullvad-payments.png" position="center" style="width:500px" width="500" caption="Mullvad VPN payment options" >}} -->
 
-You can also set up your own VPN pretty easily, however the real benefit from these VPN services comes from the fact that they are shared, and the IP address they provide you cannot be directly linked back to you. Setting up your own VPN will still give you a layer of encryption between you and your ISP.
+You can also set up your own VPN pretty easily, however the real benefit from these VPN services comes from the fact that they are shared, and the IP address they provide you cannot be directly linked back to you. Setting up your own VPN will still give you a layer of encryption between you and your ISP, but the host you use to run the VPN would still be aware of your identity.
 
 The easiest option is to simply use the Mullvad app to manage your VPN connection. The app runs out of the system tray in Windows and is pretty simple and straight forward to use. It is also available for mobile devices and looks exactly the same. It also allows you to select a geographic location for you to exit their network, so services you access think you're coming from a different country. This can be useful to get around geo-blocks and access different streaming services, among other things.
 
 <div align="center">
-{{< figure src="mullvad-app.png" width="400" caption="Mullvad app" >}} 
+{{< figure src="mullvad-app.png" width="300" caption="Mullvad app" >}} 
 </div>
 
 Mullvad also provides OpenVPN and Wireguard config files for you to download if you want to use those clients as well. I opted to integrate Mullvad into my existing Wireguard configuration, which required me to set a registry key in Windows to enable multiple tunnels. You must set `HKLM\Software\WireGuard\MultipleSimultaneousTunnels` to `DWORD(1)` for this.
@@ -49,7 +48,7 @@ You can also set expirations for your passwords to remind you to update them eve
 You should be using a different password for every service you use, and with a setup like this that makes it easy to manage, there's no excuse not to!
 
 <div align="center">
-{{< figure src="keepassxc.png" width="500" caption="KeePassXC UI" >}} 
+{{< figure src="keepassxc.png" width="650" caption="KeePassXC UI" >}} 
 </div>
 
 ## Browser
@@ -73,7 +72,7 @@ I do this because I don't route all of my traffic through the VPN by default. Yo
 #### Scripts
 
 <div align="center">
-{{< figure src="noscript.png" width="500" caption="NoScript UI" >}} 
+{{< figure src="noscript.png" width="600" caption="NoScript UI" >}} 
 </div>
 
 Disabling Javascript on sites you don't trust is probably the best single thing you can do to protect yourself. Javascript can do a lot these days, and enables a lot of fingerprinting techniques that can be used to identify you. I use [NoScript](https://addons.mozilla.org/en-US/firefox/addon/noscript/) to control this easily. You can temporarily enable Javascript (JS) for sites you want to use, or you can whitelist sites you use a lot so they will always have Javascript enabled.
@@ -87,6 +86,8 @@ I used to love using the [uMatrix](https://addons.mozilla.org/en-US/firefox/addo
 [uBlock Origin](https://ublockorigin.com/) is a great ad blocker that is simple to use. It comes with some default lists you can use to block advertiser domains and you can also add your own. 
 
 I did run into an issue with DNS leaks with my container setup. uBlock Origin was not respecting my proxy settings from Container proxy. This is not an issue if you set the proxy settings in Firefox's network settings, but doing that prevents creating containers that bypass the VPN. Instead I opted to disable the CNAME uncloak feature of uBlock, which is what generates the leaking DNS queries. You can do this by going into the advanced settings of uBlock and setting `cnameUncloak false`.
+
+CNAME cloaking can be used by advertisers to make their scripts and cookies appear as first party, as opposed to third party. This means advertisers' scripts could appear to be coming directly from the page you're loading. uBlock fights this but doing an extra DNS request to check every requested host on a page for CNAME cloaks. However, if you employ all the other methods described here, you will still be safe from tracking.
 
 Checking for DNS leaks is important. One of the best leak testers I've found is [Browserleaks.com](https://browserleaks.com/dns). This site also includes other types of privacy checks.
 
