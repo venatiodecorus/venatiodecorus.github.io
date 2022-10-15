@@ -96,20 +96,21 @@ disableHugoGeneratorInject = false
     theme = "#252627"
 
   [params.logo]
-    logoText     = "$ cd /home/"
+    # logoText     = "$ cd /home/"
+    logoText = "oct0p.us"
     logoHomeLink = "/"
     # Set true to remove the logo cursor entirely.
-    # logoCursorDisabled = false
+    logoCursorDisabled = true
     # Set to a valid CSS color to change the cursor in the logo.
     # logoCursorColor    = "#67a2c9"
     # Set to a valid CSS time value to change the animation duration, "0s" to disable.
     # logoCursorAnimate  = "2s"
 
   # Uncomment this if you want a portrait on your start page
-  # [params.portrait]
-  #   path     = "/img/image.jpg"
-  #   alt      = "Portrait"
-  #   maxWidth = "50px"
+  [params.portrait]
+    path     = "/img/twitterpic.jpg"
+    alt      = "Portrait"
+    maxWidth = "100px"
 
   # Social icons
   [[params.social]]
@@ -168,6 +169,10 @@ disableHugoGeneratorInject = false
     identifier = "tags"
     name       = "Tags"
     url        = "tags/"
+  [[menu.main]]
+    identifier = "services"
+    name       = "Services"
+    url        = "services/"
 
 [markup.goldmark.renderer]
   unsafe = true
