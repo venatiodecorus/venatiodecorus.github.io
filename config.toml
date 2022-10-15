@@ -64,7 +64,6 @@ disableHugoGeneratorInject = false
   homeSubtitle = ""
 
   # Set a background for the homepage
-  background_image = true
   backgroundImage = "img/Cygnus_dark.jpg"
 
   # Prefix of link to the git commit detail page. GitInfo must be enabled.
