@@ -64,6 +64,7 @@ disableHugoGeneratorInject = false
   homeSubtitle = ""
 
   # Set a background for the homepage
+  background_image = true
   backgroundImage = "img/Cygnus_dark.jpg"
 
   # Prefix of link to the git commit detail page. GitInfo must be enabled.
@@ -188,12 +189,12 @@ disableHugoGeneratorInject = false
 
 [languages]
   [languages.en]
-    subtitle  = "Hello Friend NG Theme"
+    subtitle  = ""
     weight    = 1
     copyright = '<a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a>'
 
   [languages.fr]
-    subtitle  = "Hello Friend NG Theme"
+    subtitle  = ""
     weight    = 2
     copyright = '<a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a>'
 
