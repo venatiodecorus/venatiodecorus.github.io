@@ -162,6 +162,10 @@ disableHugoGeneratorInject = false
     name = "twitter"
     url  = "https://twitter.com/venatiodecorus"
 
+  [[params.social]]
+    name = "mastodon"
+    url  = "https://mstdn.social/@venatio"
+
   # [[params.social]]
   #   name = "email"
   #   url  = "mailto:nobody@example.com"
