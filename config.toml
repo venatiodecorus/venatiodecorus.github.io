@@ -218,6 +218,10 @@ disableHugoGeneratorInject = false
     identifier = "services"
     name       = "Services"
     url        = "services/"
+  [[menu.main]]
+    identifier = "projects"
+    name       = "Projects"
+    url        = "projects/"
 
 [markup.goldmark.renderer]
   unsafe = true
