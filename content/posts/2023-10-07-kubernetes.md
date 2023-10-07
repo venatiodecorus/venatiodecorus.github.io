@@ -24,7 +24,7 @@ flux bootstrap github \
 
 I misunderstood this path variable, and I didn't realize this would be a path within the repository that would be created. And of course I didn't have a `/clusters` directory! So I gave it a relative path within the directory with my cluster configs. This was something like `~/dev/infra/cluster`. And so this was created, in my current directory.
 
-But Flux would not reconcile. And I could not figure out why. I was going back and forth with my friend, trying to figure out the problem. At one point I realized, this path should not have been a relative path. So perhaps I will re-run the bootstrap command with an appropriate argument. And so, despite many jokes and trolls on IRC and around the internet my distracted brain went to delete directory created by the first bootstrap, with
+But Flux would not reconcile. And I could not figure out why. I was going back and forth with my friend, trying to figure out the problem. At one point I realized, this path should not have been a relative path. So perhaps I will re-run the bootstrap command with an appropriate argument. And so, despite many jokes and trolls on IRC and around the internet my distracted brain went to delete the directory created by the first bootstrap, with
 
 `rm -rf ~`
 
