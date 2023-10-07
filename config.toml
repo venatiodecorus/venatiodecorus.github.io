@@ -1,5 +1,5 @@
 baseURL = "https://oct0p.us"
-title   = "VenatioDecorus"
+# title   = "VenatioDecorus"
 languageCode = "en-us"
 theme = "hello-friend-ng"
 
