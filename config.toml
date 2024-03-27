@@ -182,6 +182,14 @@ disableHugoGeneratorInject = false
     name = "instagram"
     url  = "https://www.instagram.com/venatiodecorus/"
 
+  [[params.social]]
+    name = "youtube"
+    url  = "https://www.youtube.com/@venatiodecorus"
+
+  # [[params.social]]
+  #   name = "tiktok"
+  #   url  = "https://www.tiktok.com/@venatiodecorus"
+
   # [[params.social]]
   #   name = "linkedin"
   #   url  = "https://www.linkedin.com/"
