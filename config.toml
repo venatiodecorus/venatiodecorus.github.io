@@ -163,8 +163,8 @@ disableHugoGeneratorInject = false
     url  = "https://twitter.com/venatiodecorus"
 
   [[params.social]]
-    name = "mastodon"
-    url  = "https://mstdn.social/@venatio"
+    name = "bluesky"
+    url  = "https://bsky.app/profile/venatio.dev"
 
   # [[params.social]]
   #   name = "email"
