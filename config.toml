@@ -110,10 +110,10 @@ disableHugoGeneratorInject = false
   # If you want, you can easily override the default footer with your own content. 
   #
   [params.footer]
-    trademark = true
+    trademark = 2025
     rss = false
     copyright = true
-    author = true
+    author = false
 
     topText = []
     bottomText = [
@@ -200,7 +200,6 @@ disableHugoGeneratorInject = false
 
 [languages]
   [languages.en]
-    subtitle  = ""
     weight    = 1
     copyright = '<a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a>'
 
