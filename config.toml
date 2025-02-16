@@ -6,12 +6,22 @@ theme = "hello-friend-ng"
 PygmentsCodeFences = true
 PygmentsStyle = "monokai"
 
-paginate  = 10
-rssLimit  = 10  # Maximum number of items in the RSS feed.
+# paginate  = 10
+# rssLimit  = 10  # Maximum number of items in the RSS feed.
 copyright = "This work is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License." # This message is only used by the RSS template.
 
 # googleAnalytics = ""
 # disqusShortname = ""
+
+[pagination]
+  disableAliases = false
+  pagerSize = 20
+  path = 'page'
+
+[services]
+  [services.rss]
+      # Maximum number of items in the RSS feed.
+      limit = 42
 
 archetypeDir = "archetypes"
 contentDir   = "content"
@@ -36,8 +46,10 @@ disableHugoGeneratorInject = false
 [permalinks]
   posts = "/posts/:year/:month/:title/"
 
-[author]
-  name = "octopus"
+# [author]
+#   name = "octopus"
+[params.author]
+  name = "venatio"
 
 [blackfriday]
   hrefTargetBlank = true
@@ -185,6 +197,10 @@ disableHugoGeneratorInject = false
   [[params.social]]
     name = "youtube"
     url  = "https://www.youtube.com/@venatiodecorus"
+
+  [[params.social]]
+    name = "soundcloud"
+    url  = "https://soundcloud.com/mastadonmounds"
 
   # [[params.social]]
   #   name = "tiktok"
