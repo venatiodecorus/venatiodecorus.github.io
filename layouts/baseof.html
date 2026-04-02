@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+{{- $defaultColor := .Site.Params.defaultColor | default "auto" -}}
+{{- if eq $defaultColor "dark" -}}
+<html lang="{{ .Site.LanguageCode }}" class="dark">
+{{- else if eq $defaultColor "light" -}}
+<html lang="{{ .Site.LanguageCode }}" class="light">
+{{- else -}}
+<html lang="{{ .Site.LanguageCode }}">
+{{- end -}}
+    {{- partial "head.html" . -}}
+    <body data-theme="{{ $defaultColor }}" class="notransition">
+        {{- if .Site.Params.waveBackground.enabled }}
+            {{- partial "wave-background.html" . -}}
+        {{- end }}
+        {{- partial "scriptsBodyStart.html" . -}}
+        {{- partial "header.html" . -}}
+        {{- block "main" . }}{{- end }}
+        {{- partial "footer.html" . -}}
+        {{- partial "scriptsBodyEnd.html" . -}}
+    </body>
+</html>

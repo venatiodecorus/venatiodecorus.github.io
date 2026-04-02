@@ -1,0 +1,294 @@
+{{- $config := .Site.Params.waveBackground -}}
+{{- $enabled := $config.enabled | default true -}}
+
+{{- if $enabled -}}
+{{- /* Default configuration values - use float to ensure decimal output */ -}}
+{{- $wavelength := float ($config.wavelength | default 45) -}}
+{{- $speed := float ($config.speed | default 14) -}}
+{{- $amplitude := float ($config.amplitude | default 70) -}}
+{{- $brightness := float ($config.brightness | default 65) -}}
+{{- $phaseDrift := float ($config.phaseDrift | default 0) -}}
+{{- $palette := $config.palette | default "ocean" -}}
+
+{{- /* Default sources if not configured */ -}}
+{{- $defaultSources := slice 
+    (dict "x" 0.28 "y" 0.42)
+    (dict "x" 0.72 "y" 0.42)
+    (dict "x" 0.5 "y" 0.7)
+-}}
+{{- $sources := $config.sources | default $defaultSources -}}
+
+<style>
+#wave-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Wave toggle button styles */
+#wave-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.5rem;
+  padding: 0.25rem;
+  cursor: pointer;
+}
+
+#wave-toggle .wave-play {
+  display: none;
+}
+
+#wave-toggle .wave-pause {
+  display: block;
+}
+
+/* When paused, show play icon and hide pause */
+html.wave-paused #wave-toggle .wave-play {
+  display: block;
+}
+
+html.wave-paused #wave-toggle .wave-pause {
+  display: none;
+}
+</style>
+
+<canvas id="wave-canvas"></canvas>
+
+<script>
+(function() {
+  'use strict';
+  
+  // Configuration from Hugo
+  const CONFIG = {
+    wavelength: {{ $wavelength }},
+    speed: {{ $speed }},
+    amplitude: {{ $amplitude }},
+    brightness: {{ $brightness }},
+    phaseDrift: {{ $phaseDrift }},
+    palette: '{{ $palette }}',
+    sources: [
+      {{- range $i, $src := $sources -}}
+      {{- if $i }},{{ end -}}
+      { x: {{ $src.x }}, y: {{ $src.y }}, ph: 0 }
+      {{- end -}}
+    ]
+  };
+
+  // Palette definitions
+  const PALETTES = {
+    ocean:  { cA: [0.024, 0.031, 0.059], cB: [0.083, 0.074, 0.183], cC: [0.114, 0.620, 0.459] },
+    coral:  { cA: [0.024, 0.016, 0.031], cB: [0.847, 0.353, 0.188], cC: [0.937, 0.624, 0.153] },
+    arctic: { cA: [0.012, 0.020, 0.039], cB: [0.133, 0.341, 0.651], cC: [0.522, 0.718, 0.922] },
+    void:   { cA: [0.004, 0.004, 0.008], cB: [0.329, 0.204, 0.529], cC: [0.831, 0.455, 0.702] },
+    ember:  { cA: [0.016, 0.008, 0.004], cB: [0.722, 0.149, 0.098], cC: [0.961, 0.820, 0.412] },
+    mint:   { cA: [0.008, 0.020, 0.016], cB: [0.059, 0.392, 0.290], cC: [0.365, 0.961, 0.682] }
+  };
+
+  const canvas = document.getElementById('wave-canvas');
+  if (!canvas) return;
+
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) {
+    // Graceful fallback: hide canvas, let CSS background show
+    canvas.style.display = 'none';
+    // Hide the toggle button too
+    const toggle = document.getElementById('wave-toggle');
+    if (toggle) toggle.style.display = 'none';
+    return;
+  }
+
+  // Shader sources
+  const VERT_SRC = `
+    attribute vec2 aPos;
+    void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
+  `;
+
+  const FRAG_SRC = `
+    precision highp float;
+    uniform vec2  uRes;
+    uniform float uTime;
+    uniform float uK;
+    uniform float uOmega;
+    uniform float uAmp;
+    uniform float uBright;
+    uniform vec3  uCA, uCB, uCC;
+    uniform int   uN;
+    uniform vec2  uSrc[12];
+    uniform float uPhase[12];
+    
+    void main() {
+      vec2 px = gl_FragCoord.xy;
+      float s = 0.0;
+      for (int i = 0; i < 12; i++) {
+        if (i >= uN) break;
+        float d = distance(px, uSrc[i]);
+        s += sin(uK * 0.01 * d - uOmega * 0.01 * uTime + uPhase[i]);
+      }
+      float n = clamp((s / float(uN) * uAmp * 0.01 + 1.0) * 0.5, 0.0, 1.0);
+      vec3 c = n < 0.5 ? mix(uCA, uCB, n * 2.0) : mix(uCB, uCC, (n - 0.5) * 2.0);
+      gl_FragColor = vec4(c * uBright * 0.01, 1.0);
+    }
+  `;
+
+  function createShader(type, src) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, src);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+      return null;
+    }
+    return shader;
+  }
+
+  const vertShader = createShader(gl.VERTEX_SHADER, VERT_SRC);
+  const fragShader = createShader(gl.FRAGMENT_SHADER, FRAG_SRC);
+  if (!vertShader || !fragShader) return;
+
+  const program = gl.createProgram();
+  gl.attachShader(program, vertShader);
+  gl.attachShader(program, fragShader);
+  gl.linkProgram(program);
+  
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error('Program link error:', gl.getProgramInfoLog(program));
+    return;
+  }
+  
+  gl.useProgram(program);
+
+  // Set up geometry (full-screen quad)
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+
+  const aPos = gl.getAttribLocation(program, 'aPos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  // Get uniform locations
+  const uniforms = {
+    res: gl.getUniformLocation(program, 'uRes'),
+    time: gl.getUniformLocation(program, 'uTime'),
+    k: gl.getUniformLocation(program, 'uK'),
+    omega: gl.getUniformLocation(program, 'uOmega'),
+    amp: gl.getUniformLocation(program, 'uAmp'),
+    bright: gl.getUniformLocation(program, 'uBright'),
+    cA: gl.getUniformLocation(program, 'uCA'),
+    cB: gl.getUniformLocation(program, 'uCB'),
+    cC: gl.getUniformLocation(program, 'uCC'),
+    n: gl.getUniformLocation(program, 'uN'),
+    src: gl.getUniformLocation(program, 'uSrc'),
+    phase: gl.getUniformLocation(program, 'uPhase')
+  };
+
+  // State
+  let width = 0, height = 0;
+  let paused = false;
+  let t0 = performance.now();
+  let tPause = 0;
+  let phaseAccumulator = 0;
+  let lastTime = performance.now();
+  const sources = CONFIG.sources.slice();
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    width = window.innerWidth * dpr;
+    height = window.innerHeight * dpr;
+    canvas.width = width;
+    canvas.height = height;
+    gl.viewport(0, 0, width, height);
+  }
+
+  function updateUIState() {
+    if (paused) {
+      document.documentElement.classList.add('wave-paused');
+    } else {
+      document.documentElement.classList.remove('wave-paused');
+    }
+  }
+
+  function togglePause() {
+    paused = !paused;
+    if (paused) {
+      tPause = performance.now();
+    } else {
+      t0 += performance.now() - tPause;
+    }
+    updateUIState();
+  }
+
+  // Expose toggle function globally
+  window.waveTogglePause = togglePause;
+
+  function render() {
+    const now = performance.now();
+    const dt = now - lastTime;
+    lastTime = now;
+
+    if (!paused) {
+      phaseAccumulator += dt * CONFIG.phaseDrift * 0.00004;
+      sources.forEach((s, i) => {
+        s.ph = phaseAccumulator * (i + 1) * 0.65;
+      });
+    }
+
+    const elapsed = paused ? tPause - t0 : now - t0;
+    const pal = PALETTES[CONFIG.palette] || PALETTES.ocean;
+
+    gl.uniform2f(uniforms.res, width, height);
+    gl.uniform1f(uniforms.time, elapsed);
+    gl.uniform1f(uniforms.k, CONFIG.wavelength);
+    gl.uniform1f(uniforms.omega, CONFIG.speed);
+    gl.uniform1f(uniforms.amp, CONFIG.amplitude);
+    gl.uniform1f(uniforms.bright, CONFIG.brightness);
+    gl.uniform3fv(uniforms.cA, pal.cA);
+    gl.uniform3fv(uniforms.cB, pal.cB);
+    gl.uniform3fv(uniforms.cC, pal.cC);
+    gl.uniform1i(uniforms.n, sources.length);
+
+    const srcArray = new Float32Array(24);
+    const phaseArray = new Float32Array(12);
+    sources.forEach((s, i) => {
+      srcArray[i * 2] = s.x * width;
+      srcArray[i * 2 + 1] = s.y * height;
+      phaseArray[i] = s.ph;
+    });
+    gl.uniform2fv(uniforms.src, srcArray);
+    gl.uniform1fv(uniforms.phase, phaseArray);
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+  }
+
+  // Set up toggle button click handler
+  function setupToggleButton() {
+    const toggle = document.getElementById('wave-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', function(e) {
+        e.preventDefault();
+        togglePause();
+      });
+    }
+  }
+
+  // Initialize
+  resize();
+  window.addEventListener('resize', resize);
+  
+  // Set up toggle button when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupToggleButton);
+  } else {
+    setupToggleButton();
+  }
+  
+  updateUIState();
+  render();
+})();
+</script>
+{{- end -}}

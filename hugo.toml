@@ -88,3 +88,26 @@ enableEmoji = true
   theme_color = "#434648" # default is "#434648" (base color of text). Also will override html `<meta name="theme-color" />`
   background_color = "#fff" # by default depend on "params.defaultColor" for "light" or "auto" will be set to "#fff" for dark will be "#131418" (color of dark mode background)
   display = "standalone"
+
+# Wave interference background configuration
+[params.waveBackground]
+  enabled = true
+  wavelength = 45          # 8-130, affects pattern density
+  speed = 40               # 1-60, animation speed
+  amplitude = 70           # 10-100, wave intensity
+  brightness = 65          # 15-100, overall brightness
+  phaseDrift = 70          # 0-100, phase variation between sources
+  palette = "ocean"        # ocean, coral, arctic, void, ember, mint
+
+  # Wave source positions (normalized 0-1 coordinates)
+  # x: horizontal position (0=left, 1=right)
+  # y: vertical position (0=bottom, 1=top)
+  [[params.waveBackground.sources]]
+    x = 0.28
+    y = 0.42
+  [[params.waveBackground.sources]]
+    x = 0.72
+    y = 0.42
+  [[params.waveBackground.sources]]
+    x = 0.5
+    y = 0.7
