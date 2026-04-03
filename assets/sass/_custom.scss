@@ -1,0 +1,22 @@
+// Transparent glass background panels for readability over the wave background.
+
+.navbar,
+.wrapper {
+  box-sizing: border-box;
+  max-width: calc(#{$wide-size} - (#{$spacing-full} * 2));
+}
+
+.navbar {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 0 0 12px 12px;
+  border-bottom: none;
+}
+
+.wrapper {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  padding-top: $spacing-full;
+  padding-bottom: $spacing-full;
+  margin-top: $spacing-full;
+  margin-bottom: $spacing-full;
+}
