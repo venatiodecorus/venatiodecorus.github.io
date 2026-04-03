@@ -1,0 +1,23 @@
+{{ define "main" }}
+<main class="page-content">
+  <article class="article">
+    <header class="article__head">
+      <h1>{{ .Title }}</h1>
+      {{ with .Date }}
+      <time datetime="{{ .Format "2006-01-02" }}">{{ .Format "02 Jan 2006" }}</time>
+      {{ end }}
+    </header>
+
+    {{ if and (.Params.toc | default .Site.Params.toc) (gt (len .TableOfContents) 0) }}
+    <details class="article__toc"{{ if .Site.Params.tocOpen }} open{{ end }}>
+      <summary>table of contents</summary>
+      {{ .TableOfContents }}
+    </details>
+    {{ end }}
+
+    <div class="article__body prose">
+      {{ .Content }}
+    </div>
+  </article>
+</main>
+{{ end }}

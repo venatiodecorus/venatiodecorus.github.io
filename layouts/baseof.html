@@ -1,21 +1,41 @@
 <!DOCTYPE html>
-{{- $defaultColor := .Site.Params.defaultColor | default "auto" -}}
-{{- if eq $defaultColor "dark" -}}
 <html lang="{{ .Site.LanguageCode }}" class="dark">
-{{- else if eq $defaultColor "light" -}}
-<html lang="{{ .Site.LanguageCode }}" class="light">
-{{- else -}}
-<html lang="{{ .Site.LanguageCode }}">
-{{- end -}}
-    {{- partial "head.html" . -}}
-    <body data-theme="{{ $defaultColor }}" class="notransition">
-        {{- if .Site.Params.waveBackground.enabled }}
-            {{- partial "wave-background.html" . -}}
-        {{- end }}
-        {{- partial "scriptsBodyStart.html" . -}}
-        {{- partial "header.html" . -}}
+  {{- partial "head.html" . -}}
+  <body data-theme="dark" class="notransition">
+    {{- partial "scriptsBodyStart.html" . -}}
+
+    {{- if .Site.Params.waveBackground.enabled }}
+      {{- partial "wave-background.html" . -}}
+    {{- end }}
+
+    <div class="shell">
+      <header class="shell__head">
+        <nav class="nav" role="navigation" aria-label="Main Navigation">
+          <a href="{{ .Site.Home.Permalink }}" class="nav__site">{{ .Site.Title }}</a>
+          <span class="nav__sep" aria-hidden="true">/</span>
+          {{ $currentPage := . }}
+          {{ range .Site.Menus.main }}
+            <a class="nav__link{{ if or ($currentPage.IsMenuCurrent "main" .) ($currentPage.HasMenuCurrent "main" .) }} nav__link--here{{ end }}" href="{{ .URL }}">{{ .Name | lower }}</a>
+          {{ end }}
+          {{- if .Site.Params.waveBackground.enabled }}
+          <a id="wave-toggle" class="nav__link nav__toggle" href="#" aria-label="Toggle wave animation" title="Toggle wave animation">
+            {{ partial "svgs/pause.svg" (dict "height" 14 "width" 14 "class" "wave-pause" "title" "Pause") . }}
+            {{ partial "svgs/play.svg" (dict "height" 14 "width" 14 "class" "wave-play" "title" "Play") . }}
+          </a>
+          {{- end }}
+        </nav>
+      </header>
+
+      <div class="shell__body">
         {{- block "main" . }}{{- end }}
-        {{- partial "footer.html" . -}}
-        {{- partial "scriptsBodyEnd.html" . -}}
-    </body>
+      </div>
+
+      <footer class="shell__foot">
+        <span class="foot__left">&copy; {{ now.Year }} {{ .Site.Params.author.name }}</span>
+        <span class="foot__right"><a href="https://en.wikipedia.org/wiki/Wave_interference" target="_blank" rel="noopener noreferrer">wave interference</a></span>
+      </footer>
+    </div>
+
+    {{- partial "scriptsBodyEnd.html" . -}}
+  </body>
 </html>
