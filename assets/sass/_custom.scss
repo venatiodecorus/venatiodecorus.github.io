@@ -86,6 +86,16 @@ body > footer:not(.shell__foot),
 html.wave-paused #wave-toggle .wave-play  { display: block; }
 html.wave-paused #wave-toggle .wave-pause { display: none; }
 
+// -- glass panel mixin ----------------------------------------------------
+
+@mixin glass-panel {
+  background: rgba(14, 16, 15, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid $c-border-hi;
+  border-radius: 10px;
+}
+
 // -- shell (page frame) ---------------------------------------------------
 
 .shell {
@@ -103,9 +113,12 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
 
 .shell__head {
   padding-top: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid $c-border;
-  margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
+}
+
+.shell__head .nav {
+  @include glass-panel;
+  padding: 0.65rem 1rem;
 }
 
 .nav {
@@ -145,41 +158,20 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   }
 }
 
+// -- content panel (glass backing for body content) -----------------------
+
+.shell__body {
+  @include glass-panel;
+  padding: 1.5rem;
+  flex: 1;
+}
+
 // -- home page ------------------------------------------------------------
 
 .home {
   display: flex;
   flex-direction: column;
   gap: 2rem;
-}
-
-// -- wave showcase window -------------------------------------------------
-// A bordered rectangle that's transparent, so the fixed wave canvas
-// shows through like a viewport / portal.
-
-.wave-window {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 21 / 9;
-  border: 1px solid $c-border-hi;
-  border-radius: 2px;
-  overflow: hidden;
-  background: transparent; // let the wave through
-
-  &__label {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 0.4rem 0.75rem;
-    background: $c-surface;
-    border-top: 1px solid $c-border;
-    font-size: 11px;
-    color: $c-fg-dim;
-    letter-spacing: 0.06em;
-
-    span { opacity: 0.7; }
-  }
 }
 
 // -- intro ----------------------------------------------------------------
@@ -284,7 +276,7 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
 // -- page content (interior pages) ----------------------------------------
 
 .page-content {
-  padding-bottom: 4rem;
+  padding-bottom: 1rem;
 }
 
 .list-title {
@@ -450,9 +442,8 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
 // -- footer ---------------------------------------------------------------
 
 .shell__foot {
-  margin-top: auto;
-  border-top: 1px solid $c-border;
-  padding: 1rem 0 1.5rem;
+  margin-top: 1.25rem;
+  padding: 0.75rem 1rem 1.5rem;
   font-size: 11px;
   color: $c-fg-dim;
   display: flex;
@@ -471,9 +462,9 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
 @media (max-width: 600px) {
   body { font-size: 13px; }
 
-  .shell { padding: 0 1rem; }
+  .shell { padding: 0 0.75rem; }
 
-  .wave-window { aspect-ratio: 16 / 9; }
+  .shell__body { padding: 1rem; }
 
   .post-row {
     flex-wrap: wrap;

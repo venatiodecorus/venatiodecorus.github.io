@@ -52,7 +52,7 @@ enableEmoji = true
 [Languages.en-us.params.author]
   avatar = ""
   intro = "venatio.dev"
-  name = "Tony"
+  name = "Venatio"
   description = "Exploring ideas through code, math, and visualization."
 
 [Languages.en-us.params.webmanifest]
@@ -67,7 +67,7 @@ enableEmoji = true
 [params.waveBackground]
   enabled = true
   wavelength = 45
-  speed = 40
+  speed = 30
   amplitude = 70
   brightness = 65
   phaseDrift = 70
