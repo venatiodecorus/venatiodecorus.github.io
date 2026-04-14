@@ -14,7 +14,8 @@
           <a href="{{ .Site.Home.Permalink }}" class="nav__site">{{ .Site.Title }}</a>
           <span class="nav__sep" aria-hidden="true">/</span>
           {{ $currentPage := . }}
-          {{ range .Site.Menus.main }}
+          {{ range $i, $e := .Site.Menus.main }}
+            {{ if $i }}<span class="nav__dot" aria-hidden="true">·</span>{{ end }}
             <a class="nav__link{{ if or ($currentPage.IsMenuCurrent "main" .) ($currentPage.HasMenuCurrent "main" .) }} nav__link--here{{ end }}" href="{{ .URL }}">{{ .Name | lower }}</a>
           {{ end }}
           {{- if .Site.Params.waveBackground.enabled }}

@@ -140,6 +140,13 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
     user-select: none;
   }
 
+  &__dot {
+    color: $c-fg-dim;
+    opacity: 0.4;
+    user-select: none;
+    font-size: 11px;
+  }
+
   &__link {
     color: $c-fg-dim;
     text-decoration: none;
@@ -200,7 +207,7 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   color: $c-fg-dim;
   margin: 1rem 0;
   font-size: 12px;
-  opacity: 0.3;
+  opacity: 0.5;
 
   &::before {
     content: '- - - - - - - - - - - - - -';
@@ -443,12 +450,18 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
 
 .shell__foot {
   margin-top: 1.25rem;
-  padding: 0.75rem 1rem 1.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.35rem 1rem;
   font-size: 11px;
   color: $c-fg-dim;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: rgba(14, 16, 15, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid $c-border;
+  border-radius: 10px;
 
   a {
     color: $c-fg-dim;
