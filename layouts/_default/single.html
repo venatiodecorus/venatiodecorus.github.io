@@ -25,5 +25,12 @@
       {{ .Content }}
     </div>
   </article>
+
+  {{- partial "comments.html" . -}}
+
+  {{- if or .Params.bluesky .Params.mastodon .Params.commentsDemoMode }}
+  {{- $commentsJS := resources.Get "js/comments.js" | minify | fingerprint }}
+  <script src="{{ $commentsJS.RelPermalink }}" defer></script>
+  {{- end }}
 </main>
 {{ end }}

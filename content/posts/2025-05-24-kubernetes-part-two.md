@@ -3,6 +3,10 @@ title: Kubernetes Part Two
 description: Diving into the world of k8s once again, again
 date: 2025-05-24
 tags: ["k8s","infra"]
+# image: "/images/posts/kubernetes-part-two.png"
+# commentsDemoMode: true
+# bluesky: "https://bsky.app/profile/yourhandle/post/xxxxx"
+# mastodon: "https://mastodon.social/@youruser/123456789"
 ---
 
 It's been a while since I've updated this blog, but I've recently been working on my cluster again and figured I'd put together an update on where I'm at now. I've been trying to keep better notes as I work on projects so I can refer back when needed and see how things evolve over time.

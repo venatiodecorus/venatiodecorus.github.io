@@ -1,0 +1,38 @@
+{{- $bluesky := .Params.bluesky -}}
+{{- $mastodon := .Params.mastodon -}}
+{{- $demo := .Params.commentsDemoMode | default false -}}
+{{- $hasComments := or $bluesky $mastodon $demo -}}
+
+{{- if $hasComments }}
+<section class="comments" id="comments">
+  <h2 class="comments__heading">comments</h2>
+
+  <div
+    id="comments-container"
+    {{- with $bluesky }} data-bluesky="{{ . }}"{{ end }}
+    {{- with $mastodon }} data-mastodon="{{ . }}"{{ end }}
+    {{- if $demo }} data-demo="true"{{ end }}
+  >
+    <p class="comments__loading">loading comments&hellip;</p>
+  </div>
+
+  <noscript>
+    <p class="comments__noscript">
+      Comments are loaded from social media. Enable JavaScript to view them, or join the conversation on
+      {{- with $bluesky }} <a href="{{ . }}" target="_blank" rel="noopener noreferrer">Bluesky</a>{{ end }}
+      {{- if and $bluesky $mastodon }} or{{ end }}
+      {{- with $mastodon }} <a href="{{ . }}" target="_blank" rel="noopener noreferrer">Mastodon</a>{{ end }}.
+    </p>
+  </noscript>
+
+  {{- if or $bluesky $mastodon }}
+  <p class="comments__cta">
+    Reply on
+    {{- if $bluesky }} <a href="{{ $bluesky }}" target="_blank" rel="noopener noreferrer">Bluesky</a>{{ end }}
+    {{- if and $bluesky $mastodon }} or{{ end }}
+    {{- if $mastodon }} <a href="{{ $mastodon }}" target="_blank" rel="noopener noreferrer">Mastodon</a>{{ end }}
+    to join the conversation.
+  </p>
+  {{- end }}
+</section>
+{{- end }}
