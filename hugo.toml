@@ -53,7 +53,6 @@ enableEmoji = true
   avatar = ""
   intro = "venatio.dev"
   name = "Venatio"
-  description = "Exploring ideas through code, math, and visualization."
 
 [Languages.en-us.params.webmanifest]
   name = "venatio.dev"
