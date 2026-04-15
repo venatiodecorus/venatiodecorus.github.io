@@ -330,15 +330,15 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
 
 .page-content {
   padding-bottom: 1rem;
-}
 
-.list-title {
-  font-size: 18px;
-  font-weight: 500;
-  color: $c-fg-bright;
-  margin: 0 0 1.25rem;
+  h1.list-title {
+    font-size: 18px;
+    font-weight: 500;
+    color: $c-fg-bright;
+    margin: 0 0 1.5rem;
+  }
 
-  + .list-desc { margin-top: -0.95rem; }
+  .list-title + .list-desc { margin-top: -1.2rem; }
 }
 
 .list-desc {
