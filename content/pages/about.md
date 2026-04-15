@@ -11,10 +11,6 @@ I’m a developer interested in the following technologies:
 - Cryptocurrencies and smart contracts
 - Social media and its effect on culture
 
-If you appreciate my content, please feel free to contribute!
-- BTC: bc1qp4kwkyxxqsn9mjhpuff5sn4e236uu3wnfs7uh2
-- ETH: 0xBc807386a9B86a2C95c782484Ec6B17ed0889fa0
-
 # Tools
 My tools of choice for software development are as follows:
 
