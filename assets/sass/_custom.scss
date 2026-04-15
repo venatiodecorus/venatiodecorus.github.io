@@ -20,6 +20,8 @@ $c-fg-dim:    #706b60;
 $c-fg-bright: #e8e3d8;
 $c-accent:    #7eb8a4;
 $c-accent2:   #c4956a;
+$c-link:      #77a8fd;
+$c-link-hover:#5292ff;
 $c-border:    rgba(200, 194, 180, 0.08);
 $c-border-hi: rgba(200, 194, 180, 0.15);
 $c-surface:   rgba(14, 16, 15, 0.82);
@@ -28,7 +30,7 @@ $c-surface:   rgba(14, 16, 15, 0.82);
 
 *, *::before, *::after { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; scrollbar-gutter: stable; }
 
 body {
   font-family: $mono;
@@ -45,6 +47,7 @@ a {
   color: $c-accent;
   text-decoration: none;
   &:hover { text-decoration: underline; }
+  &:focus { outline: none; }
 }
 
 ::selection {
@@ -271,6 +274,9 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-decoration: underline;
+    text-decoration-color: rgba($c-fg, 0.3);
+    text-underline-offset: 2px;
   }
 }
 
@@ -358,11 +364,11 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   p { margin: 0 0 1.2rem; }
 
   a {
-    color: $c-accent;
+    color: $c-link;
     text-decoration: underline;
     text-underline-offset: 2px;
-    text-decoration-color: rgba($c-accent, 0.3);
-    &:hover { text-decoration-color: $c-accent; }
+    text-decoration-color: rgba($c-link, 0.3);
+    &:hover { color: $c-link-hover; text-decoration-color: $c-link; }
   }
 
   strong { color: $c-fg-bright; font-weight: 500; }
@@ -510,6 +516,22 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   .nav { font-size: 12px; }
 }
 
-// -- dark mode var --------------------------------------------------------
+// -- dark mode overrides --------------------------------------------------
 
-.dark { color-scheme: dark; }
+.dark {
+  color-scheme: dark;
+
+  // Remove focus outline the theme applies to all links
+  a:focus { outline: none; }
+
+  // Prevent theme's html.dark a styles from bleeding into nav / post-row links
+  .nav__site  { color: $c-fg-bright; &:hover { color: $c-accent; } }
+  .nav__link  { color: $c-fg-dim;    &:hover { color: $c-fg; } }
+  .page-content .post-row { color: $c-fg; &:hover { color: $c-fg-bright; text-decoration: none; } }
+
+  // Override the theme's html.dark a { color: inherit } for prose content
+  .prose a {
+    color: $c-link;
+    &:hover { color: $c-link-hover; }
+  }
+}
