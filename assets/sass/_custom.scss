@@ -193,20 +193,20 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
     border-radius: 50%;
     object-fit: cover;
     border: 2px solid $c-border-hi;
-    margin-bottom: 0.75rem;
+    margin-bottom: 2rem;
     image-rendering: pixelated;
   }
 
   &__hi {
     font-size: 15px;
     color: $c-fg;
-    margin: 0 0 0.3rem;
+    margin: 0 0 1.5rem;
     strong { color: $c-fg-bright; font-weight: 500; }
   }
 
   &__desc {
     font-size: 13px;
-    color: $c-fg-dim;
+    color: #babdc4;
     margin: 0;
     line-height: 1.65;
   }
@@ -215,7 +215,7 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
-    margin-top: 0.75rem;
+    margin-top: 1.75rem;
   }
 }
 

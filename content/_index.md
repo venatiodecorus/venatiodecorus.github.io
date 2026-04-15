@@ -22,4 +22,6 @@ handle = "@venatiodecorus"
 url = "https://github.com/venatiodecorus"
 +++
 
-Exploring ideas through code, math, and visualization. I've been a software developer for many years, I love my trade. Exploring the [intersection](https://www.google.com) of love and AI.
+Exploring ideas through code, math, and visualization. 
+
+I started out as a game developer but have moved through many paradigms including embedded systems, mainframes and the web. Lately I've been working in healthcare and moving back down the stack writing firmware.
