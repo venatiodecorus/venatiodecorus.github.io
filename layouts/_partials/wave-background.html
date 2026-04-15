@@ -1148,7 +1148,7 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
         if (idx >= 0 && idx < ANIMATIONS.length) return idx;
       }
     } catch(e) {}
-    return 0; // default to wave interference
+    return Math.floor(Math.random() * ANIMATIONS.length);
   }
 
   function storeIndex(idx) {
