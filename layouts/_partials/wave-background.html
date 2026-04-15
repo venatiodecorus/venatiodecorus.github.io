@@ -2,7 +2,7 @@
 {{- $enabled := $config.enabled | default true -}}
 
 {{- if $enabled -}}
-{{- /* Default configuration values - use float to ensure decimal output */ -}}
+{{- /* Wave-specific configuration */ -}}
 {{- $wavelength := float ($config.wavelength | default 45) -}}
 {{- $speed := float ($config.speed | default 14) -}}
 {{- $amplitude := float ($config.amplitude | default 70) -}}
@@ -10,7 +10,6 @@
 {{- $phaseDrift := float ($config.phaseDrift | default 0) -}}
 {{- $palette := $config.palette | default "ocean" -}}
 
-{{- /* Default sources if not configured */ -}}
 {{- $defaultSources := slice 
     (dict "x" 0.28 "y" 0.42)
     (dict "x" 0.72 "y" 0.42)
@@ -27,8 +26,6 @@
   z-index: -1;
   pointer-events: none;
 }
-
-/* Wave toggle button styles */
 #wave-toggle {
   display: flex;
   align-items: center;
@@ -37,23 +34,10 @@
   padding: 0.25rem;
   cursor: pointer;
 }
-
-#wave-toggle .wave-play {
-  display: none;
-}
-
-#wave-toggle .wave-pause {
-  display: block;
-}
-
-/* When paused, show play icon and hide pause */
-html.wave-paused #wave-toggle .wave-play {
-  display: block;
-}
-
-html.wave-paused #wave-toggle .wave-pause {
-  display: none;
-}
+#wave-toggle .wave-play  { display: none; }
+#wave-toggle .wave-pause { display: block; }
+html.wave-paused #wave-toggle .wave-play  { display: block; }
+html.wave-paused #wave-toggle .wave-pause { display: none; }
 </style>
 
 <canvas id="wave-canvas"></canvas>
@@ -61,155 +45,45 @@ html.wave-paused #wave-toggle .wave-pause {
 <script>
 (function() {
   'use strict';
-  
-  // Configuration from Hugo
-  const CONFIG = {
-    wavelength: {{ $wavelength }},
-    speed: {{ $speed }},
-    amplitude: {{ $amplitude }},
-    brightness: {{ $brightness }},
-    phaseDrift: {{ $phaseDrift }},
-    palette: '{{ $palette }}',
-    sources: [
-      {{- range $i, $src := $sources -}}
-      {{- if $i }},{{ end -}}
-      { x: {{ $src.x }}, y: {{ $src.y }}, ph: 0 }
-      {{- end -}}
-    ]
-  };
 
-  // Palette definitions
-  const PALETTES = {
-    ocean:  { cA: [0.024, 0.031, 0.059], cB: [0.083, 0.074, 0.183], cC: [0.114, 0.620, 0.459] },
-    coral:  { cA: [0.024, 0.016, 0.031], cB: [0.847, 0.353, 0.188], cC: [0.937, 0.624, 0.153] },
-    arctic: { cA: [0.012, 0.020, 0.039], cB: [0.133, 0.341, 0.651], cC: [0.522, 0.718, 0.922] },
-    void:   { cA: [0.004, 0.004, 0.008], cB: [0.329, 0.204, 0.529], cC: [0.831, 0.455, 0.702] },
-    ember:  { cA: [0.016, 0.008, 0.004], cB: [0.722, 0.149, 0.098], cC: [0.961, 0.820, 0.412] },
-    mint:   { cA: [0.008, 0.020, 0.016], cB: [0.059, 0.392, 0.290], cC: [0.365, 0.961, 0.682] }
-  };
+  // ======================================================================
+  // Animation Manager — manages canvas, pause state, animation switching
+  // ======================================================================
 
   const canvas = document.getElementById('wave-canvas');
   if (!canvas) return;
 
   const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
   if (!gl) {
-    // Graceful fallback: hide canvas, let CSS background show
     canvas.style.display = 'none';
-    // Hide the toggle button too
-    const toggle = document.getElementById('wave-toggle');
+    var toggle = document.getElementById('wave-toggle');
     if (toggle) toggle.style.display = 'none';
     return;
   }
 
-  // Shader sources
-  const VERT_SRC = `
-    attribute vec2 aPos;
-    void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
-  `;
-
-  const FRAG_SRC = `
-    precision highp float;
-    uniform vec2  uRes;
-    uniform float uTime;
-    uniform float uK;
-    uniform float uOmega;
-    uniform float uAmp;
-    uniform float uBright;
-    uniform vec3  uCA, uCB, uCC;
-    uniform int   uN;
-    uniform vec2  uSrc[12];
-    uniform float uPhase[12];
-    
-    void main() {
-      vec2 px = gl_FragCoord.xy;
-      float s = 0.0;
-      for (int i = 0; i < 12; i++) {
-        if (i >= uN) break;
-        float d = distance(px, uSrc[i]);
-        s += sin(uK * 0.01 * d - uOmega * 0.01 * uTime + uPhase[i]);
-      }
-      float n = clamp((s / float(uN) * uAmp * 0.01 + 1.0) * 0.5, 0.0, 1.0);
-      vec3 c = n < 0.5 ? mix(uCA, uCB, n * 2.0) : mix(uCB, uCC, (n - 0.5) * 2.0);
-      gl_FragColor = vec4(c * uBright * 0.01, 1.0);
-    }
-  `;
-
-  function createShader(type, src) {
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, src);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      console.error('Shader compile error:', gl.getShaderInfoLog(shader));
-      return null;
-    }
-    return shader;
-  }
-
-  const vertShader = createShader(gl.VERTEX_SHADER, VERT_SRC);
-  const fragShader = createShader(gl.FRAGMENT_SHADER, FRAG_SRC);
-  if (!vertShader || !fragShader) return;
-
-  const program = gl.createProgram();
-  gl.attachShader(program, vertShader);
-  gl.attachShader(program, fragShader);
-  gl.linkProgram(program);
-  
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.error('Program link error:', gl.getProgramInfoLog(program));
-    return;
-  }
-  
-  gl.useProgram(program);
-
-  // Set up geometry (full-screen quad)
-  const buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-
-  const aPos = gl.getAttribLocation(program, 'aPos');
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-  // Get uniform locations
-  const uniforms = {
-    res: gl.getUniformLocation(program, 'uRes'),
-    time: gl.getUniformLocation(program, 'uTime'),
-    k: gl.getUniformLocation(program, 'uK'),
-    omega: gl.getUniformLocation(program, 'uOmega'),
-    amp: gl.getUniformLocation(program, 'uAmp'),
-    bright: gl.getUniformLocation(program, 'uBright'),
-    cA: gl.getUniformLocation(program, 'uCA'),
-    cB: gl.getUniformLocation(program, 'uCB'),
-    cC: gl.getUniformLocation(program, 'uCC'),
-    n: gl.getUniformLocation(program, 'uN'),
-    src: gl.getUniformLocation(program, 'uSrc'),
-    phase: gl.getUniformLocation(program, 'uPhase')
-  };
-
-  // State
+  // Shared state
   let width = 0, height = 0;
   let paused = false;
   let t0 = performance.now();
   let tPause = 0;
-  let phaseAccumulator = 0;
   let lastTime = performance.now();
-  const sources = CONFIG.sources.slice();
+  let currentAnimation = null;
+  let currentAnimationId = null;
 
   function resize() {
     const dpr = window.devicePixelRatio || 1;
-    width = window.innerWidth * dpr;
-    height = window.innerHeight * dpr;
-    canvas.width = width;
+    width  = Math.floor(window.innerWidth  * dpr);
+    height = Math.floor(window.innerHeight * dpr);
+    canvas.width  = width;
     canvas.height = height;
     gl.viewport(0, 0, width, height);
+    if (currentAnimation && currentAnimation.resize) {
+      currentAnimation.resize(width, height);
+    }
   }
 
   function updateUIState() {
-    if (paused) {
-      document.documentElement.classList.add('wave-paused');
-    } else {
-      document.documentElement.classList.remove('wave-paused');
-    }
+    document.documentElement.classList.toggle('wave-paused', paused);
   }
 
   function togglePause() {
@@ -218,56 +92,1147 @@ html.wave-paused #wave-toggle .wave-pause {
       tPause = performance.now();
     } else {
       t0 += performance.now() - tPause;
+      lastTime = performance.now();
     }
     updateUIState();
   }
 
-  // Expose toggle function globally
   window.waveTogglePause = togglePause;
 
-  function render() {
-    const now = performance.now();
-    const dt = now - lastTime;
-    lastTime = now;
+  // -- Shader helper (shared by all animations) ---------------------------
 
-    if (!paused) {
-      phaseAccumulator += dt * CONFIG.phaseDrift * 0.00004;
-      sources.forEach((s, i) => {
-        s.ph = phaseAccumulator * (i + 1) * 0.65;
-      });
+  function compileShader(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      console.error('Shader compile:', gl.getShaderInfoLog(s));
+      return null;
+    }
+    return s;
+  }
+
+  function buildProgram(vertSrc, fragSrc) {
+    const vs = compileShader(gl.VERTEX_SHADER, vertSrc);
+    const fs = compileShader(gl.FRAGMENT_SHADER, fragSrc);
+    if (!vs || !fs) return null;
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.error('Program link:', gl.getProgramInfoLog(prog));
+      return null;
+    }
+    // Detach and delete shaders after linking
+    gl.detachShader(prog, vs);
+    gl.detachShader(prog, fs);
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+    return prog;
+  }
+
+  // Full-screen quad buffer (shared)
+  const quadBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+
+  function bindQuad(program) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    const aPos = gl.getAttribLocation(program, 'aPos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+  }
+
+  function drawQuad() {
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  // ======================================================================
+  // Animation 1: Wave Interference
+  // ======================================================================
+
+  function createWaveInterference() {
+    const WAVE_CONFIG = {
+      wavelength: {{ $wavelength }},
+      speed: {{ $speed }},
+      amplitude: {{ $amplitude }},
+      brightness: {{ $brightness }},
+      phaseDrift: {{ $phaseDrift }},
+      palette: '{{ $palette }}',
+      sources: [
+        {{- range $i, $src := $sources -}}
+        {{- if $i }},{{ end -}}
+        { x: {{ $src.x }}, y: {{ $src.y }}, ph: 0 }
+        {{- end -}}
+      ]
+    };
+
+    const PALETTES = {
+      ocean:  { cA: [0.024, 0.031, 0.059], cB: [0.083, 0.074, 0.183], cC: [0.114, 0.620, 0.459] },
+      coral:  { cA: [0.024, 0.016, 0.031], cB: [0.847, 0.353, 0.188], cC: [0.937, 0.624, 0.153] },
+      arctic: { cA: [0.012, 0.020, 0.039], cB: [0.133, 0.341, 0.651], cC: [0.522, 0.718, 0.922] },
+      void:   { cA: [0.004, 0.004, 0.008], cB: [0.329, 0.204, 0.529], cC: [0.831, 0.455, 0.702] },
+      ember:  { cA: [0.016, 0.008, 0.004], cB: [0.722, 0.149, 0.098], cC: [0.961, 0.820, 0.412] },
+      mint:   { cA: [0.008, 0.020, 0.016], cB: [0.059, 0.392, 0.290], cC: [0.365, 0.961, 0.682] }
+    };
+
+    const FRAG = `
+      precision highp float;
+      uniform vec2  uRes;
+      uniform float uTime;
+      uniform float uK, uOmega, uAmp, uBright;
+      uniform vec3  uCA, uCB, uCC;
+      uniform int   uN;
+      uniform vec2  uSrc[12];
+      uniform float uPhase[12];
+      void main() {
+        vec2 px = gl_FragCoord.xy;
+        float s = 0.0;
+        for (int i = 0; i < 12; i++) {
+          if (i >= uN) break;
+          float d = distance(px, uSrc[i]);
+          s += sin(uK * 0.01 * d - uOmega * 0.01 * uTime + uPhase[i]);
+        }
+        float n = clamp((s / float(uN) * uAmp * 0.01 + 1.0) * 0.5, 0.0, 1.0);
+        vec3 c = n < 0.5 ? mix(uCA, uCB, n * 2.0) : mix(uCB, uCC, (n - 0.5) * 2.0);
+        gl_FragColor = vec4(c * uBright * 0.01, 1.0);
+      }
+    `;
+
+    const VERT = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+    var program = null;
+    var u = {};
+    var phaseAccumulator = 0;
+    var sources = WAVE_CONFIG.sources.map(function(s) { return { x: s.x, y: s.y, ph: 0 }; });
+
+    return {
+      id: 'wave-interference',
+      label: 'wave interference',
+      url: 'https://en.wikipedia.org/wiki/Wave_interference',
+
+      init: function() {
+        program = buildProgram(VERT, FRAG);
+        if (!program) return false;
+        gl.useProgram(program);
+        bindQuad(program);
+        u = {
+          res:   gl.getUniformLocation(program, 'uRes'),
+          time:  gl.getUniformLocation(program, 'uTime'),
+          k:     gl.getUniformLocation(program, 'uK'),
+          omega: gl.getUniformLocation(program, 'uOmega'),
+          amp:   gl.getUniformLocation(program, 'uAmp'),
+          bright:gl.getUniformLocation(program, 'uBright'),
+          cA:    gl.getUniformLocation(program, 'uCA'),
+          cB:    gl.getUniformLocation(program, 'uCB'),
+          cC:    gl.getUniformLocation(program, 'uCC'),
+          n:     gl.getUniformLocation(program, 'uN'),
+          src:   gl.getUniformLocation(program, 'uSrc'),
+          phase: gl.getUniformLocation(program, 'uPhase')
+        };
+        phaseAccumulator = 0;
+        return true;
+      },
+
+      render: function(elapsed, dt) {
+        if (!paused) {
+          phaseAccumulator += dt * WAVE_CONFIG.phaseDrift * 0.00004;
+          sources.forEach(function(s, i) { s.ph = phaseAccumulator * (i + 1) * 0.65; });
+        }
+        gl.useProgram(program);
+        bindQuad(program);
+        var pal = PALETTES[WAVE_CONFIG.palette] || PALETTES.ocean;
+        gl.uniform2f(u.res, width, height);
+        gl.uniform1f(u.time, elapsed);
+        gl.uniform1f(u.k, WAVE_CONFIG.wavelength);
+        gl.uniform1f(u.omega, WAVE_CONFIG.speed);
+        gl.uniform1f(u.amp, WAVE_CONFIG.amplitude);
+        gl.uniform1f(u.bright, WAVE_CONFIG.brightness);
+        gl.uniform3fv(u.cA, pal.cA);
+        gl.uniform3fv(u.cB, pal.cB);
+        gl.uniform3fv(u.cC, pal.cC);
+        gl.uniform1i(u.n, sources.length);
+        var srcArr = new Float32Array(24);
+        var phArr  = new Float32Array(12);
+        sources.forEach(function(s, i) {
+          srcArr[i*2]   = s.x * width;
+          srcArr[i*2+1] = s.y * height;
+          phArr[i]      = s.ph;
+        });
+        gl.uniform2fv(u.src, srcArr);
+        gl.uniform1fv(u.phase, phArr);
+        drawQuad();
+      },
+
+      destroy: function() {
+        if (program) { gl.deleteProgram(program); program = null; }
+      }
+    };
+  }
+
+  // ======================================================================
+  // Animation 2: Digital Terrain Flythrough
+  // ======================================================================
+
+  function createTerrainFlythrough() {
+    // 3/4-angle perspective of a scrolling heightmap rendered as contour
+    // lines — a topographic map the camera flies over. Pure fragment shader.
+    // Uses a procedural noise heightmap with layered octaves, sliced into
+    // contour bands and drawn with grid lines for the digital look.
+
+    const VERT = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+    const FRAG = `
+      precision highp float;
+      uniform vec2  uRes;
+      uniform float uTime;
+
+      // --- simple value noise (no deps) ---
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+      }
+
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
+
+      float fbm(vec2 p) {
+        float v = 0.0;
+        float a = 0.5;
+        vec2 shift = vec2(100.0);
+        for (int i = 0; i < 5; i++) {
+          v += a * noise(p);
+          p = p * 2.0 + shift;
+          a *= 0.5;
+        }
+        return v;
+      }
+
+      void main() {
+        vec2 uv = gl_FragCoord.xy / uRes;
+
+        // --- 3/4 perspective projection ---
+        // Map screen Y to depth (z), screen X to world X
+        // Bottom of screen = near, top = far
+        float depth = 1.0 / (1.05 - uv.y * 0.95);   // perspective divisor
+        float worldX = (uv.x - 0.5) * depth * 2.5;
+        float worldZ = depth * 4.0 + uTime * 0.0004;  // camera moves forward
+
+        vec2 worldPos = vec2(worldX, worldZ);
+
+        // --- terrain height ---
+        float h = fbm(worldPos * 0.35) * 1.0;
+
+        // --- contour lines ---
+        float contourSpacing = 0.08;
+        float contour = fract(h / contourSpacing);
+        // Sharpen the contour line edge
+        float lineWidth = 0.06;
+        float contourLine = 1.0 - smoothstep(0.0, lineWidth, contour)
+                               - (1.0 - smoothstep(1.0 - lineWidth, 1.0, contour));
+        contourLine = clamp(contourLine, 0.0, 1.0);
+
+        // --- grid lines for digital look ---
+        float gridScale = 0.5;
+        vec2 grid = abs(fract(worldPos * gridScale) - 0.5);
+        float gridLine = 1.0 - smoothstep(0.0, 0.03, min(grid.x, grid.y));
+        gridLine *= 0.15;
+
+        // --- color: warm topographic palette, height-based ---
+        vec3 lowColor  = vec3(0.02, 0.03, 0.05);    // deep dark blue
+        vec3 midColor  = vec3(0.06, 0.10, 0.18);    // muted blue
+        vec3 highColor = vec3(0.11, 0.55, 0.42);    // teal/green peak
+
+        vec3 baseColor = h < 0.4
+          ? mix(lowColor, midColor, h / 0.4)
+          : mix(midColor, highColor, clamp((h - 0.4) / 0.6, 0.0, 1.0));
+
+        // Contour lines are brighter
+        vec3 lineColor = vec3(0.15, 0.65, 0.50);    // teal line glow
+        vec3 gridColor = vec3(0.05, 0.20, 0.18);
+
+        vec3 col = baseColor;
+        col = mix(col, lineColor, contourLine * 0.6);
+        col += gridColor * gridLine;
+
+        // --- distance fog ---
+        float fog = 1.0 - exp(-0.15 * (depth - 1.0));
+        fog = clamp(fog, 0.0, 1.0);
+        vec3 fogColor = vec3(0.012, 0.016, 0.028);
+        col = mix(col, fogColor, fog);
+
+        // Slight brightness based on depth (nearer = brighter)
+        col *= mix(1.0, 0.3, fog);
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    var program = null;
+    var u = {};
+
+    return {
+      id: 'terrain-flythrough',
+      label: 'terrain flythrough',
+      url: 'https://en.wikipedia.org/wiki/Digital_elevation_model',
+
+      init: function() {
+        program = buildProgram(VERT, FRAG);
+        if (!program) return false;
+        gl.useProgram(program);
+        bindQuad(program);
+        u = {
+          res:  gl.getUniformLocation(program, 'uRes'),
+          time: gl.getUniformLocation(program, 'uTime')
+        };
+        return true;
+      },
+
+      render: function(elapsed) {
+        gl.useProgram(program);
+        bindQuad(program);
+        gl.uniform2f(u.res, width, height);
+        gl.uniform1f(u.time, elapsed);
+        drawQuad();
+      },
+
+      destroy: function() {
+        if (program) { gl.deleteProgram(program); program = null; }
+      }
+    };
+  }
+
+  // ======================================================================
+  // Animation 3: Vaporwave Sunset
+  // ======================================================================
+
+  function createVaporwaveSunset() {
+    // Retrowave / synthwave horizon: perspective grid floor, gradient sky,
+    // glowing sun disc with horizontal scanlines. Slow camera drift.
+    // Subdued palette so it reads as a moody background.
+
+    const VERT = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+    const FRAG = `
+      precision highp float;
+      uniform vec2  uRes;
+      uniform float uTime;
+
+      void main() {
+        vec2 uv = gl_FragCoord.xy / uRes;
+        float aspect = uRes.x / uRes.y;
+
+        // Horizon line at 45% from bottom
+        float horizon = 0.45;
+
+        // ---- Sky gradient ----
+        vec3 skyLow  = vec3(0.22, 0.05, 0.28);  // rich purple at horizon
+        vec3 skyMid  = vec3(0.14, 0.03, 0.20);  // dark magenta
+        vec3 skyHigh = vec3(0.02, 0.02, 0.06);  // near-black at top
+        float skyT = clamp((uv.y - horizon) / (1.0 - horizon), 0.0, 1.0);
+        vec3 sky = skyT < 0.5
+          ? mix(skyLow, skyMid, skyT * 2.0)
+          : mix(skyMid, skyHigh, (skyT - 0.5) * 2.0);
+
+        // ---- Sun: offset to the right so it peeks out from content edge ----
+        vec2 sunPos = vec2(0.78, horizon + 0.20);
+        vec2 uvA = vec2((uv.x - 0.5) * aspect, uv.y);
+        vec2 spA = vec2((sunPos.x - 0.5) * aspect, sunPos.y);
+        float sunDist = length(uvA - spA);
+        float sunRadius = 0.14;
+
+        // Sun body - warm gradient
+        vec3 sunInner = vec3(0.95, 0.55, 0.15);
+        vec3 sunOuter = vec3(0.85, 0.15, 0.35);
+        float sunT = clamp(sunDist / sunRadius, 0.0, 1.0);
+        vec3 sunColor = mix(sunInner, sunOuter, sunT);
+
+        // Horizontal scanlines through the sun (retrowave look)
+        float scanFreq = uRes.y * 0.12;
+        float scan = 0.5 + 0.5 * sin(uv.y * scanFreq);
+        scan = smoothstep(0.3, 0.7, scan);
+        // Scanlines only in lower half of sun (classic vaporwave)
+        float scanMask = smoothstep(sunPos.y, sunPos.y - 0.06, uv.y);
+        float sunMask = 1.0 - smoothstep(sunRadius - 0.005, sunRadius + 0.005, sunDist);
+        sunColor *= mix(1.0, scan * 0.4 + 0.6, scanMask);
+
+        // Sun glow — larger, more atmospheric
+        float glow = exp(-sunDist * 3.5) * 0.35;
+        vec3 glowColor = vec3(0.6, 0.15, 0.4);
+
+        // Combine sky + sun
+        vec3 col = sky + glowColor * glow;
+        col = mix(col, sunColor, sunMask);
+
+        // ---- Ground: fluorescent perspective grid ----
+        if (uv.y < horizon) {
+          float groundT = (horizon - uv.y) / horizon;  // 0 at horizon, 1 at bottom
+
+          // Perspective: remap groundT so near-ground is usable
+          float depth = 1.0 / (groundT + 0.02);
+          float worldX = (uv.x - 0.5) * depth * 1.6;
+          float worldZ = depth * 0.8 + uTime * 0.00015;
+
+          // Grid lines
+          float gridX = abs(fract(worldX * 0.2) - 0.5);
+          float gridZ = abs(fract(worldZ * 0.2) - 0.5);
+          // Line width: thicker near camera, thinner in distance
+          float lineW = 0.015 + groundT * 0.06;
+          float lineX = 1.0 - smoothstep(0.0, lineW, gridX);
+          float lineZ = 1.0 - smoothstep(0.0, lineW, gridZ);
+          float grid = max(lineX, lineZ);
+
+          // Ground base color (very dark purple-black)
+          vec3 groundBase = vec3(0.025, 0.01, 0.045);
+          // Fluorescent grid: hot magenta + electric cyan
+          vec3 gridColorM = vec3(0.85, 0.10, 0.70);  // hot magenta
+          vec3 gridColorC = vec3(0.10, 0.80, 0.85);  // electric cyan
+          // Blend based on which axis dominates
+          float axisMix = lineZ / (grid + 0.001);
+          vec3 gridCol = mix(gridColorM, gridColorC, axisMix);
+
+          // Fade grid near horizon
+          float horizonFade = smoothstep(0.0, 0.08, groundT);
+          grid *= horizonFade;
+
+          // Bright neon grid lines
+          vec3 ground = groundBase + gridCol * grid * 0.7;
+
+          // Fluorescent glow along grid lines (wide, visible)
+          float glowX = exp(-gridX * 8.0) * 0.14;
+          float glowZ = exp(-gridZ * 8.0) * 0.14;
+          float gridGlow = max(glowX, glowZ) * horizonFade;
+          ground += mix(gridColorM, gridColorC, 0.5) * gridGlow * 0.35;
+
+          // Reflection glow from sun on ground
+          float reflectX = exp(-abs(uv.x - sunPos.x) * 4.0);
+          float reflectZ = exp(-groundT * 2.5);
+          ground += vec3(0.22, 0.06, 0.15) * reflectX * reflectZ * 0.3;
+
+          col = ground;
+
+          // Soft horizon blend
+          float horizonBlend = smoothstep(0.0, 0.015, groundT);
+          col = mix(sky + glowColor * glow, col, horizonBlend);
+        }
+
+        // ---- Overall dim for background use ----
+        col *= 0.65;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    var program = null;
+    var u = {};
+
+    return {
+      id: 'vaporwave-sunset',
+      label: 'vaporwave sunset',
+      url: 'https://en.wikipedia.org/wiki/Synthwave',
+
+      init: function() {
+        program = buildProgram(VERT, FRAG);
+        if (!program) return false;
+        gl.useProgram(program);
+        bindQuad(program);
+        u = {
+          res:  gl.getUniformLocation(program, 'uRes'),
+          time: gl.getUniformLocation(program, 'uTime')
+        };
+        return true;
+      },
+
+      render: function(elapsed) {
+        gl.useProgram(program);
+        bindQuad(program);
+        gl.uniform2f(u.res, width, height);
+        gl.uniform1f(u.time, elapsed);
+        drawQuad();
+      },
+
+      destroy: function() {
+        if (program) { gl.deleteProgram(program); program = null; }
+      }
+    };
+  }
+
+  // ======================================================================
+  // Animation 4: Alchemical Runes
+  // ======================================================================
+
+  function createAlchemicalRunes() {
+    // Historical alchemical symbols rendered as SDF primitives.
+    // Based on real symbols for classical elements, planetary metals,
+    // and alchemical processes. Arranged in a drifting grid with
+    // independent fade cycles per cell.
+
+    const VERT = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+    const FRAG = `
+      precision highp float;
+      uniform vec2  uRes;
+      uniform float uTime;
+
+      // -- pseudo-random --
+      float hash(float n) { return fract(sin(n) * 43758.5453123); }
+      float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+      // -- 2D rotation --
+      mat2 rot(float a) {
+        float c = cos(a), s = sin(a);
+        return mat2(c, -s, s, c);
+      }
+
+      // -- SDF primitives --
+      float sdCircle(vec2 p, float r) { return length(p) - r; }
+      float sdRing(vec2 p, float r, float w) { return abs(length(p) - r) - w; }
+      float sdLine(vec2 p, vec2 a, vec2 b, float w) {
+        vec2 pa = p - a, ba = b - a;
+        float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+        return length(pa - ba * h) - w;
+      }
+      float sdArc(vec2 p, float r, float w, float aStart, float aEnd) {
+        // Arc SDF: ring segment from aStart to aEnd (radians)
+        float a = atan(p.y, p.x);
+        float mid = (aStart + aEnd) * 0.5;
+        float hExt = (aEnd - aStart) * 0.5;
+        // Angle distance from arc center
+        float da = a - mid;
+        da = da - 6.28318 * floor((da + 3.14159) / 6.28318); // wrap
+        float onArc = abs(length(p) - r) - w;
+        float offArc = length(p - r * vec2(cos(a < mid ? aStart : aEnd), sin(a < mid ? aStart : aEnd))) - w;
+        return abs(da) < hExt ? onArc : min(onArc, length(vec2(onArc, abs(da) - hExt) * r));
+      }
+      float sdTriOutline(vec2 p, float r, float w) {
+        // Equilateral triangle outline
+        float k = sqrt(3.0);
+        p.x = abs(p.x) - r;
+        p.y = p.y + r / k;
+        if (p.x + k * p.y > 0.0) p = vec2(p.x - k * p.y, -k * p.x - p.y) / 2.0;
+        p.x -= clamp(p.x, -2.0 * r, 0.0);
+        float d = length(p) * sign(p.y);
+        return abs(d) - w;
+      }
+
+      // ============================================================
+      // Historical alchemical & zodiacal symbols (24 types)
+      // Types 0-11: geometric (elements, metals, primes)
+      // Types 12-23: flowing/curved (zodiac signs, compounds)
+      // ============================================================
+      float drawRune(vec2 p, float type, float s) {
+        float d = 1e5;
+        float w = s * 0.035;
+        int t = int(floor(type * 24.0));
+
+        // ---- Geometric symbols (classical elements & metals) ----
+
+        if (t == 0) {
+          // FIRE — upward triangle
+          d = sdTriOutline(p - vec2(0.0, -s*0.08), s * 0.48, w);
+
+        } else if (t == 1) {
+          // WATER — downward triangle
+          vec2 pr = vec2(p.x, -p.y);
+          d = sdTriOutline(pr - vec2(0.0, -s*0.08), s * 0.48, w);
+
+        } else if (t == 2) {
+          // AIR — upward triangle with bar
+          d = sdTriOutline(p - vec2(0.0, -s*0.08), s * 0.48, w);
+          d = min(d, sdLine(p, vec2(-s*0.38, s*0.08), vec2(s*0.38, s*0.08), w));
+
+        } else if (t == 3) {
+          // EARTH — downward triangle with bar
+          vec2 pr = vec2(p.x, -p.y);
+          d = sdTriOutline(pr - vec2(0.0, -s*0.08), s * 0.48, w);
+          d = min(d, sdLine(p, vec2(-s*0.38, -s*0.08), vec2(s*0.38, -s*0.08), w));
+
+        } else if (t == 4) {
+          // SULFUR — triangle atop a cross
+          d = sdTriOutline(p - vec2(0.0, s*0.18), s * 0.32, w);
+          d = min(d, sdLine(p, vec2(0.0, -s*0.02), vec2(0.0, -s*0.55), w));
+          d = min(d, sdLine(p, vec2(-s*0.22, -s*0.35), vec2(s*0.22, -s*0.35), w));
+
+        } else if (t == 5) {
+          // MERCURY — circle + cross + crescent
+          d = sdRing(p, s * 0.25, w);
+          d = min(d, sdLine(p, vec2(0.0, -s*0.25), vec2(0.0, -s*0.58), w));
+          d = min(d, sdLine(p, vec2(-s*0.18, -s*0.45), vec2(s*0.18, -s*0.45), w));
+          float outer = sdRing(p - vec2(0.0, s*0.42), s * 0.16, w);
+          float cut = sdCircle(p - vec2(0.0, s*0.50), s * 0.14);
+          d = min(d, max(outer, cut));
+
+        } else if (t == 6) {
+          // SALT — circle bisected by line
+          d = sdRing(p, s * 0.4, w);
+          d = min(d, sdLine(p, vec2(-s*0.4, 0.0), vec2(s*0.4, 0.0), w));
+
+        } else if (t == 7) {
+          // GOLD/SUN — circle with dot
+          d = sdRing(p, s * 0.45, w);
+          d = min(d, sdCircle(p, s * 0.07));
+
+        } else if (t == 8) {
+          // SILVER/MOON — crescent
+          float mo = sdRing(p, s * 0.4, w);
+          float mc = sdCircle(p - vec2(s*0.2, 0.0), s * 0.32);
+          d = max(mo, mc);
+
+        } else if (t == 9) {
+          // COPPER/VENUS — circle + cross below
+          d = sdRing(p - vec2(0.0, s*0.12), s * 0.3, w);
+          d = min(d, sdLine(p, vec2(0.0, -s*0.18), vec2(0.0, -s*0.55), w));
+          d = min(d, sdLine(p, vec2(-s*0.2, -s*0.38), vec2(s*0.2, -s*0.38), w));
+
+        } else if (t == 10) {
+          // IRON/MARS — circle + arrow
+          d = sdRing(p - vec2(-s*0.08, -s*0.08), s * 0.3, w);
+          vec2 ae = vec2(s*0.48, s*0.48);
+          d = min(d, sdLine(p, vec2(s*0.13, s*0.13), ae, w));
+          d = min(d, sdLine(p, ae, ae + vec2(-s*0.18, 0.0), w));
+          d = min(d, sdLine(p, ae, ae + vec2(0.0, -s*0.18), w));
+
+        } else if (t == 11) {
+          // PHILOSOPHER'S STONE — triangle in circle in square
+          float sq = s * 0.52;
+          d = min(d, sdLine(p, vec2(-sq, -sq), vec2( sq, -sq), w));
+          d = min(d, sdLine(p, vec2( sq, -sq), vec2( sq,  sq), w));
+          d = min(d, sdLine(p, vec2( sq,  sq), vec2(-sq,  sq), w));
+          d = min(d, sdLine(p, vec2(-sq,  sq), vec2(-sq, -sq), w));
+          d = min(d, sdRing(p, s * 0.5, w));
+          d = min(d, sdTriOutline(p - vec2(0.0, -s*0.05), s * 0.38, w));
+
+        // ---- Flowing/curved symbols (zodiac & compounds) ----
+
+        } else if (t == 12) {
+          // LEO ♌ — loop swooping into a curved tail
+          // Right loop
+          d = sdRing(p - vec2(s*0.15, s*0.1), s * 0.22, w);
+          // Left arc swooping down
+          float la = sdRing(p - vec2(-s*0.22, -s*0.08), s * 0.28, w);
+          // Mask to upper-right portion of left arc
+          float mask1 = p.y + s*0.08 + (p.x + s*0.22) * 0.4;
+          d = min(d, max(la, -mask1));
+          // Connecting curve at bottom
+          d = min(d, sdLine(p, vec2(-s*0.22, -s*0.36), vec2(s*0.0, -s*0.15), w));
+
+        } else if (t == 13) {
+          // VIRGO ♍ — three vertical strokes with a loop
+          // Three vertical lines
+          d = min(d, sdLine(p, vec2(-s*0.28, s*0.35), vec2(-s*0.28, -s*0.15), w));
+          d = min(d, sdLine(p, vec2(-s*0.05, s*0.35), vec2(-s*0.05, -s*0.15), w));
+          d = min(d, sdLine(p, vec2(s*0.18, s*0.35), vec2(s*0.18, -s*0.15), w));
+          // Connecting arcs at top
+          float a1 = sdRing(p - vec2(-s*0.165, s*0.35), s * 0.115, w);
+          d = min(d, max(a1, -(p.y - s*0.35)));
+          float a2 = sdRing(p - vec2(s*0.065, s*0.35), s * 0.115, w);
+          d = min(d, max(a2, -(p.y - s*0.35)));
+          // Looping tail from right stroke
+          d = min(d, sdLine(p, vec2(s*0.18, -s*0.15), vec2(s*0.38, -s*0.35), w));
+          float tail = sdRing(p - vec2(s*0.28, -s*0.35), s * 0.1, w);
+          d = min(d, max(tail, (p.y + s*0.35)));
+
+        } else if (t == 14) {
+          // LIBRA ♎ — scales: horizontal line with arc above
+          // Base line
+          d = sdLine(p, vec2(-s*0.45, -s*0.15), vec2(s*0.45, -s*0.15), w);
+          // Upper arc (half-circle)
+          float arc = sdRing(p - vec2(0.0, -s*0.15), s * 0.32, w);
+          d = min(d, max(arc, -(p.y + s*0.15)));
+          // Upper horizontal line
+          d = min(d, sdLine(p, vec2(-s*0.45, s*0.17), vec2(s*0.45, s*0.17), w));
+
+        } else if (t == 15) {
+          // SCORPIO ♏ — "m" shape with arrow tail
+          // Three vertical strokes
+          d = min(d, sdLine(p, vec2(-s*0.32, s*0.25), vec2(-s*0.32, -s*0.2), w));
+          d = min(d, sdLine(p, vec2(-s*0.08, s*0.25), vec2(-s*0.08, -s*0.2), w));
+          d = min(d, sdLine(p, vec2(s*0.16, s*0.25), vec2(s*0.16, -s*0.2), w));
+          // Connecting arcs at top
+          float sa1 = sdRing(p - vec2(-s*0.2, s*0.25), s * 0.12, w);
+          d = min(d, max(sa1, -(p.y - s*0.25)));
+          float sa2 = sdRing(p - vec2(s*0.04, s*0.25), s * 0.12, w);
+          d = min(d, max(sa2, -(p.y - s*0.25)));
+          // Arrow tail going right and up
+          d = min(d, sdLine(p, vec2(s*0.16, -s*0.2), vec2(s*0.42, -s*0.2), w));
+          d = min(d, sdLine(p, vec2(s*0.42, -s*0.2), vec2(s*0.32, -s*0.08), w));
+          d = min(d, sdLine(p, vec2(s*0.42, -s*0.2), vec2(s*0.32, -s*0.32), w));
+
+        } else if (t == 16) {
+          // CAPRICORN ♑ — loop with descending tail
+          // Vertical stroke
+          d = sdLine(p, vec2(-s*0.2, s*0.4), vec2(-s*0.2, -s*0.05), w);
+          // Loop at the top connecting to tail
+          float lp1 = sdRing(p - vec2(0.0, s*0.15), s * 0.2, w);
+          d = min(d, max(lp1, -(p.x)));
+          // Descending curved tail
+          d = min(d, sdLine(p, vec2(0.0, -s*0.05), vec2(s*0.15, -s*0.25), w));
+          float tail2 = sdRing(p - vec2(s*0.15, -s*0.4), s * 0.15, w);
+          d = min(d, max(tail2, (p.y + s*0.4)));
+          d = min(d, max(tail2, -(p.x - s*0.15)));
+
+        } else if (t == 17) {
+          // AQUARIUS ♒ — two parallel zigzag/wave lines
+          float wave1 = 1e5;
+          float wave2 = 1e5;
+          // Upper wave
+          wave1 = min(wave1, sdLine(p, vec2(-s*0.4, s*0.12), vec2(-s*0.2, s*0.24), w));
+          wave1 = min(wave1, sdLine(p, vec2(-s*0.2, s*0.24), vec2(0.0, s*0.12), w));
+          wave1 = min(wave1, sdLine(p, vec2(0.0, s*0.12), vec2(s*0.2, s*0.24), w));
+          wave1 = min(wave1, sdLine(p, vec2(s*0.2, s*0.24), vec2(s*0.4, s*0.12), w));
+          // Lower wave
+          wave2 = min(wave2, sdLine(p, vec2(-s*0.4, -s*0.12), vec2(-s*0.2, 0.0), w));
+          wave2 = min(wave2, sdLine(p, vec2(-s*0.2, 0.0), vec2(0.0, -s*0.12), w));
+          wave2 = min(wave2, sdLine(p, vec2(0.0, -s*0.12), vec2(s*0.2, 0.0), w));
+          wave2 = min(wave2, sdLine(p, vec2(s*0.2, 0.0), vec2(s*0.4, -s*0.12), w));
+          d = min(wave1, wave2);
+
+        } else if (t == 18) {
+          // PISCES ♓ — two opposing arcs with bar
+          // Left arc (opening right)
+          float la2 = sdRing(p - vec2(-s*0.1, 0.0), s * 0.35, w);
+          d = min(d, max(la2, -(p.x + s*0.1)));
+          // Right arc (opening left)
+          float ra2 = sdRing(p - vec2(s*0.1, 0.0), s * 0.35, w);
+          d = min(d, max(ra2, (p.x - s*0.1)));
+          // Horizontal bar through middle
+          d = min(d, sdLine(p, vec2(-s*0.45, 0.0), vec2(s*0.45, 0.0), w));
+
+        } else if (t == 19) {
+          // JUPITER/TIN ♃ — stylized "2" with crossbar
+          // Curved top stroke (arc)
+          float ja = sdRing(p - vec2(s*0.05, s*0.22), s * 0.2, w);
+          d = min(d, max(ja, (p.y - s*0.22)));
+          // Descending stroke
+          d = min(d, sdLine(p, vec2(-s*0.15, s*0.22), vec2(-s*0.15, -s*0.4), w));
+          // Horizontal crossbar
+          d = min(d, sdLine(p, vec2(-s*0.38, s*0.02), vec2(s*0.1, s*0.02), w));
+
+        } else if (t == 20) {
+          // SATURN/LEAD ♄ — scythe: curved top + cross
+          // Curved top (arc opening down-right)
+          float sa3 = sdRing(p - vec2(s*0.1, s*0.28), s * 0.2, w);
+          d = min(d, max(sa3, (p.y - s*0.28)));
+          // Vertical stroke
+          d = min(d, sdLine(p, vec2(-s*0.1, s*0.28), vec2(-s*0.1, -s*0.45), w));
+          // Horizontal crossbar
+          d = min(d, sdLine(p, vec2(-s*0.35, s*0.05), vec2(s*0.08, s*0.05), w));
+
+        } else if (t == 21) {
+          // ANTIMONY ♁ — globe with cross on top (globus cruciger)
+          // Globe
+          d = sdRing(p - vec2(0.0, -s*0.12), s * 0.32, w);
+          // Vertical cross above
+          d = min(d, sdLine(p, vec2(0.0, s*0.2), vec2(0.0, s*0.55), w));
+          // Horizontal crossbar
+          d = min(d, sdLine(p, vec2(-s*0.18, s*0.38), vec2(s*0.18, s*0.38), w));
+
+        } else if (t == 22) {
+          // CADUCEUS — staff with two intertwined S-curves
+          // Central staff
+          d = sdLine(p, vec2(0.0, -s*0.5), vec2(0.0, s*0.5), w);
+          // Left S-curve (two arcs)
+          float c1 = sdRing(p - vec2(-s*0.15, s*0.12), s * 0.18, w);
+          d = min(d, max(c1, (p.x + s*0.15)));
+          float c2 = sdRing(p - vec2(-s*0.15, -s*0.18), s * 0.18, w);
+          d = min(d, max(c2, -(p.x + s*0.15)));
+          // Right S-curve (two arcs, mirrored)
+          float c3 = sdRing(p - vec2(s*0.15, s*0.12), s * 0.18, w);
+          d = min(d, max(c3, -(p.x - s*0.15)));
+          float c4 = sdRing(p - vec2(s*0.15, -s*0.18), s * 0.18, w);
+          d = min(d, max(c4, (p.x - s*0.15)));
+          // Small circle at top (head)
+          d = min(d, sdRing(p - vec2(0.0, s*0.5), s * 0.06, w * 0.6));
+
+        } else {
+          // SPIRIT/QUINTESSENCE — circle with arc above (🜀 aether)
+          // Circle
+          d = sdRing(p - vec2(0.0, -s*0.1), s * 0.3, w);
+          // Arc above (like a hood/dome)
+          float qa = sdRing(p - vec2(0.0, s*0.15), s * 0.35, w);
+          d = min(d, max(qa, (p.y - s*0.15)));
+          // Small vertical finial
+          d = min(d, sdLine(p, vec2(0.0, s*0.5), vec2(0.0, s*0.38), w));
+        }
+
+        return d;
+      }
+
+      void main() {
+        vec2 uv = gl_FragCoord.xy / uRes;
+        float aspect = uRes.x / uRes.y;
+        vec2 uvA = vec2((uv.x - 0.5) * aspect, uv.y - 0.5);
+
+        // Slow drift
+        float drift = uTime * 0.00003;
+        uvA += vec2(sin(drift * 0.7) * 0.08, drift * 0.4);
+
+        // Dense grid of runes
+        float cellSize = 0.13;
+        vec2 cell = floor(uvA / cellSize);
+        vec2 local = fract(uvA / cellSize) - 0.5;
+        local *= cellSize;
+
+        vec3 col = vec3(0.015, 0.018, 0.028);
+
+        // Check 3x3 neighborhood for overlap
+        for (int dx = -1; dx <= 1; dx++) {
+          for (int dy = -1; dy <= 1; dy++) {
+            vec2 neighbor = cell + vec2(float(dx), float(dy));
+            vec2 lp = local - vec2(float(dx), float(dy)) * cellSize;
+
+            // Per-cell random values — multiple independent hashes
+            float cellHash  = hash2(neighbor * 17.31);
+            float cellHash2 = hash2(neighbor * 43.17 + 7.89);
+            float cellHash3 = hash2(neighbor * 91.53 + 23.41);
+            float typeVal   = hash2(neighbor * 7.77 + 3.33);
+
+            // Rotation: slow, per-cell rate
+            float rotSpeed = (cellHash - 0.5) * 0.00012;
+            float angle = uTime * rotSpeed + cellHash * 6.28;
+            lp = rot(angle) * lp;
+
+            // Fade cycle: fully desynchronized per rune
+            // Use cellHash2 for offset and cellHash3 for period
+            // to break any correlation with other properties.
+            float cycleOffset = cellHash2 * 60000.0 + cellHash3 * 25000.0;
+            float cyclePeriod = 15000.0 + cellHash3 * 20000.0;
+            float phase = mod(uTime + cycleOffset, cyclePeriod) / cyclePeriod;
+            // Smooth fade: 0->1->0 over the cycle
+            float fade = sin(phase * 3.14159);
+            fade = fade * fade;
+            // Some runes are always dim, some bright
+            float maxBright = 0.15 + cellHash * 0.25;
+            float alpha = fade * maxBright;
+
+            if (alpha < 0.005) continue;
+
+            float runeSize = cellSize * 0.4;
+            float d = drawRune(lp, typeVal, runeSize);
+
+            // Anti-alias
+            float edge = 1.0 - smoothstep(0.0, cellSize * 0.015, d);
+
+            // Rune color: warm golds, cyans, pale greens
+            float hueHash = hash2(neighbor * 2.22 + 1.11);
+            vec3 runeColor;
+            if (hueHash < 0.33) {
+              runeColor = vec3(0.60, 0.50, 0.22);  // gold
+            } else if (hueHash < 0.66) {
+              runeColor = vec3(0.22, 0.55, 0.50);  // teal
+            } else {
+              runeColor = vec3(0.45, 0.38, 0.58);  // lavender
+            }
+
+            // Subtle glow around the rune
+            float glowD = max(d, 0.0);
+            float glow = exp(-glowD * 25.0 / cellSize) * 0.15;
+
+            col += runeColor * edge * alpha;
+            col += runeColor * glow * alpha * 0.6;
+          }
+        }
+
+        // Very subtle vignette
+        float vig = 1.0 - length(uv - 0.5) * 0.6;
+        col *= vig;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    var program = null;
+    var u = {};
+
+    return {
+      id: 'alchemical-runes',
+      label: 'alchemical runes',
+      url: 'https://en.wikipedia.org/wiki/Alchemical_symbol',
+
+      init: function() {
+        program = buildProgram(VERT, FRAG);
+        if (!program) return false;
+        gl.useProgram(program);
+        bindQuad(program);
+        u = {
+          res:  gl.getUniformLocation(program, 'uRes'),
+          time: gl.getUniformLocation(program, 'uTime')
+        };
+        return true;
+      },
+
+      render: function(elapsed) {
+        gl.useProgram(program);
+        bindQuad(program);
+        gl.uniform2f(u.res, width, height);
+        gl.uniform1f(u.time, elapsed);
+        drawQuad();
+      },
+
+      destroy: function() {
+        if (program) { gl.deleteProgram(program); program = null; }
+      }
+    };
+  }
+
+  // ======================================================================
+  // Animation 5: Julia Fractal
+  // ======================================================================
+
+  function createJuliaFractal() {
+    // Animated Julia set with slowly evolving c-parameter, tracing a
+    // smooth path that produces interesting shapes. Low iteration count
+    // keeps it fast; dark palette with subtle color banding.
+
+    const VERT = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+    const FRAG = `
+      precision highp float;
+      uniform vec2  uRes;
+      uniform float uTime;
+
+      // Smooth palette from iteration count
+      vec3 palette(float t) {
+        // Moody teal/amber palette — visible but not harsh
+        vec3 a = vec3(0.04, 0.05, 0.08);
+        vec3 b = vec3(0.18, 0.24, 0.28);
+        vec3 c = vec3(0.55, 0.70, 0.65);
+        vec3 d = vec3(0.18, 0.35, 0.50);
+        return a + b * cos(6.28318 * (c * t + d));
+      }
+
+      void main() {
+        vec2 uv = gl_FragCoord.xy / uRes;
+        float aspect = uRes.x / uRes.y;
+
+        // Map to complex plane, centered, with zoom
+        float zoom = 1.6;
+        vec2 z = vec2((uv.x - 0.5) * aspect, uv.y - 0.5) * zoom * 2.0;
+
+        // c-parameter: interpolate between hand-picked c values known
+        // to produce beautiful, detailed Julia sets.
+        // Uses if-else chain for WebGL 1 compatibility (no dynamic indexing).
+        float t = uTime * 0.00003;
+        float phase = mod(t, 8.0);
+        int idx = int(floor(phase));
+        float ft = fract(phase);
+        ft = ft * ft * (3.0 - 2.0 * ft);  // ease in-out
+
+        // Keyframe lookup (WebGL 1 requires const array indices)
+        vec2 cA, cB;
+        // 0: dendrite spiral  1: lightning  2: douady rabbit
+        // 3: seahorse valley  4: galaxy     5: basilica
+        // 6: feather          7: double spiral
+        if (idx == 0) {
+          cA = vec2(-0.7269, 0.1889); cB = vec2(-0.8, 0.156);
+        } else if (idx == 1) {
+          cA = vec2(-0.8, 0.156); cB = vec2(-0.123, 0.745);
+        } else if (idx == 2) {
+          cA = vec2(-0.123, 0.745); cB = vec2(-0.75, 0.11);
+        } else if (idx == 3) {
+          cA = vec2(-0.75, 0.11); cB = vec2(0.285, 0.01);
+        } else if (idx == 4) {
+          cA = vec2(0.285, 0.01); cB = vec2(-0.038, 0.9696);
+        } else if (idx == 5) {
+          cA = vec2(-0.038, 0.9696); cB = vec2(0.285, 0.535);
+        } else if (idx == 6) {
+          cA = vec2(0.285, 0.535); cB = vec2(-0.4, 0.6);
+        } else {
+          cA = vec2(-0.4, 0.6); cB = vec2(-0.7269, 0.1889);
+        }
+        vec2 c = mix(cA, cB, ft);
+
+        // Iterate z = z^2 + c
+        float iter = 0.0;
+        float maxIter = 64.0;
+        float escape = 4.0;
+
+        for (int i = 0; i < 64; i++) {
+          if (dot(z, z) > escape) break;
+          // z = z^2 + c
+          z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
+          iter += 1.0;
+        }
+
+        // Smooth iteration count for anti-banding
+        float smoothIter = 0.0;
+        if (iter < maxIter) {
+          float sl = log(dot(z, z)) / 2.0;
+          smoothIter = iter - log(sl / log(2.0)) / log(2.0);
+        }
+
+        // Color
+        vec3 col;
+        if (iter >= maxIter) {
+          // Interior: very dark
+          col = vec3(0.008, 0.010, 0.018);
+        } else {
+          // Exterior: palette based on smooth iteration
+          float colorT = smoothIter * 0.04;
+          col = palette(colorT);
+
+          // Dim for background use — visible but not overpowering
+          col *= 0.7;
+        }
+
+        // Subtle vignette
+        float vig = 1.0 - length(uv - 0.5) * 0.5;
+        col *= vig;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    var program = null;
+    var u = {};
+
+    return {
+      id: 'julia-fractal',
+      label: 'julia set',
+      url: 'https://en.wikipedia.org/wiki/Julia_set',
+
+      init: function() {
+        program = buildProgram(VERT, FRAG);
+        if (!program) return false;
+        gl.useProgram(program);
+        bindQuad(program);
+        u = {
+          res:  gl.getUniformLocation(program, 'uRes'),
+          time: gl.getUniformLocation(program, 'uTime')
+        };
+        return true;
+      },
+
+      render: function(elapsed) {
+        gl.useProgram(program);
+        bindQuad(program);
+        gl.uniform2f(u.res, width, height);
+        gl.uniform1f(u.time, elapsed);
+        drawQuad();
+      },
+
+      destroy: function() {
+        if (program) { gl.deleteProgram(program); program = null; }
+      }
+    };
+  }
+
+  // ======================================================================
+  // Animation Registry
+  // ======================================================================
+
+  var ANIMATIONS = [
+    createWaveInterference,
+    createTerrainFlythrough,
+    createVaporwaveSunset,
+    createAlchemicalRunes,
+    createJuliaFractal
+  ];
+
+  // Persist choice in sessionStorage so it survives page navigation
+  var STORAGE_KEY = 'venatio_bg_animation';
+
+  function getStoredIndex() {
+    try {
+      var val = sessionStorage.getItem(STORAGE_KEY);
+      if (val !== null) {
+        var idx = parseInt(val, 10);
+        if (idx >= 0 && idx < ANIMATIONS.length) return idx;
+      }
+    } catch(e) {}
+    return 0; // default to wave interference
+  }
+
+  function storeIndex(idx) {
+    try { sessionStorage.setItem(STORAGE_KEY, idx); } catch(e) {}
+  }
+
+  function switchAnimation(idx) {
+    // Tear down current
+    if (currentAnimation) {
+      currentAnimation.destroy();
+      currentAnimation = null;
     }
 
-    const elapsed = paused ? tPause - t0 : now - t0;
-    const pal = PALETTES[CONFIG.palette] || PALETTES.ocean;
+    // Reset timing
+    t0 = performance.now();
+    tPause = 0;
+    lastTime = performance.now();
+    if (paused) {
+      tPause = t0;
+    }
 
-    gl.uniform2f(uniforms.res, width, height);
-    gl.uniform1f(uniforms.time, elapsed);
-    gl.uniform1f(uniforms.k, CONFIG.wavelength);
-    gl.uniform1f(uniforms.omega, CONFIG.speed);
-    gl.uniform1f(uniforms.amp, CONFIG.amplitude);
-    gl.uniform1f(uniforms.bright, CONFIG.brightness);
-    gl.uniform3fv(uniforms.cA, pal.cA);
-    gl.uniform3fv(uniforms.cB, pal.cB);
-    gl.uniform3fv(uniforms.cC, pal.cC);
-    gl.uniform1i(uniforms.n, sources.length);
+    // Build new
+    var anim = ANIMATIONS[idx]();
+    if (!anim.init()) {
+      console.error('Failed to init animation:', anim.id);
+      return;
+    }
+    currentAnimation = anim;
+    currentAnimationId = anim.id;
+    storeIndex(idx);
+    updateFooter();
+  }
 
-    const srcArray = new Float32Array(24);
-    const phaseArray = new Float32Array(12);
-    sources.forEach((s, i) => {
-      srcArray[i * 2] = s.x * width;
-      srcArray[i * 2 + 1] = s.y * height;
-      phaseArray[i] = s.ph;
-    });
-    gl.uniform2fv(uniforms.src, srcArray);
-    gl.uniform1fv(uniforms.phase, phaseArray);
+  function shuffleAnimation() {
+    if (ANIMATIONS.length <= 1) return;
+    var currentIdx = getStoredIndex();
+    var nextIdx;
+    do {
+      nextIdx = Math.floor(Math.random() * ANIMATIONS.length);
+    } while (nextIdx === currentIdx);
+    switchAnimation(nextIdx);
+  }
 
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  // Expose globally for the footer button
+  window.bgShuffle = shuffleAnimation;
+
+  function updateFooter() {
+    var labelEl = document.getElementById('bg-label');
+    var linkEl  = document.getElementById('bg-link');
+    if (currentAnimation && labelEl) {
+      labelEl.textContent = currentAnimation.label;
+    }
+    if (currentAnimation && linkEl) {
+      linkEl.href = currentAnimation.url;
+      linkEl.textContent = currentAnimation.label;
+    }
+  }
+
+  // ======================================================================
+  // Render Loop
+  // ======================================================================
+
+  function render() {
+    var now = performance.now();
+    var dt = now - lastTime;
+    lastTime = now;
+
+    if (paused) dt = 0;
+
+    var elapsed = paused ? tPause - t0 : now - t0;
+
+    if (currentAnimation) {
+      currentAnimation.render(elapsed, dt);
+    }
+
     requestAnimationFrame(render);
   }
 
-  // Set up toggle button click handler
+  // ======================================================================
+  // Init
+  // ======================================================================
+
   function setupToggleButton() {
-    const toggle = document.getElementById('wave-toggle');
+    var toggle = document.getElementById('wave-toggle');
     if (toggle) {
       toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -276,17 +1241,33 @@ html.wave-paused #wave-toggle .wave-pause {
     }
   }
 
-  // Initialize
+  function setupShuffleButton() {
+    var btn = document.getElementById('bg-shuffle');
+    if (btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        shuffleAnimation();
+      });
+    }
+  }
+
   resize();
   window.addEventListener('resize', resize);
-  
-  // Set up toggle button when DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupToggleButton);
-  } else {
+
+  function onReady() {
     setupToggleButton();
+    setupShuffleButton();
+    updateFooter();
   }
-  
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', onReady);
+  } else {
+    onReady();
+  }
+
+  // Start with stored animation (or default)
+  switchAnimation(getStoredIndex());
   updateUIState();
   render();
 })();

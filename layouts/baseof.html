@@ -33,7 +33,16 @@
 
       <footer class="shell__foot">
         <span class="foot__left">&copy; {{ now.Year }} {{ .Site.Params.author.name }}</span>
+        {{- if .Site.Params.waveBackground.enabled }}
+        <span class="foot__right foot__bg">
+          <a id="bg-link" href="https://en.wikipedia.org/wiki/Wave_interference" target="_blank" rel="noopener noreferrer"><span id="bg-label">wave interference</span></a>
+          <a id="bg-shuffle" class="foot__shuffle" href="#" aria-label="Random background" title="Random background">
+            {{ partial "svgs/shuffle.svg" (dict "height" 12 "width" 12) . }}
+          </a>
+        </span>
+        {{- else }}
         <span class="foot__right"><a href="https://en.wikipedia.org/wiki/Wave_interference" target="_blank" rel="noopener noreferrer">wave interference</a></span>
+        {{- end }}
       </footer>
     </div>
 
