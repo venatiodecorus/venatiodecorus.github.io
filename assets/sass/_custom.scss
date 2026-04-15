@@ -336,7 +336,9 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   font-size: 18px;
   font-weight: 500;
   color: $c-fg-bright;
-  margin: 0 0 0.3rem;
+  margin: 0 0 1.25rem;
+
+  + .list-desc { margin-top: -0.95rem; }
 }
 
 .list-desc {
