@@ -9,7 +9,7 @@ I’m a developer interested in the following technologies:
 - AI and how it will shape the future of software
 - WebGL and shaders
 - Cryptocurrencies and smart contracts
-- Social media and its affect on culture
+- Social media and its effect on culture
 
 If you appreciate my content, please feel free to contribute!
 - BTC: bc1qp4kwkyxxqsn9mjhpuff5sn4e236uu3wnfs7uh2
