@@ -3,8 +3,22 @@
 
   {{/* ── Intro ── */}}
   <section class="intro">
+    <img class="intro__avatar" src="/pfp.jpg" alt="{{ .Site.Params.author.name }}" width="72" height="72" />
     <p class="intro__hi">Hi, I'm <strong>{{ .Site.Params.author.name }}</strong>.</p>
     <div class="intro__desc prose">{{ .Content }}</div>
+    {{ with .Params.socials }}
+    <div class="intro__socials">
+      {{ range . }}
+      <a class="social-link" href="{{ .url }}" target="_blank" rel="noopener noreferrer">
+        {{- if eq .platform "twitter" }}{{ partial "svgs/twitter.svg" (dict "width" 14 "height" 14) }}
+        {{- else if eq .platform "bluesky" }}{{ partial "svgs/bluesky.svg" (dict "width" 14 "height" 14) }}
+        {{- else if eq .platform "mastodon" }}{{ partial "svgs/mastodon.svg" (dict "width" 14 "height" 14) }}
+        {{- end -}}
+        <span class="social-link__handle">{{ .handle }}</span>
+      </a>
+      {{ end }}
+    </div>
+    {{ end }}
   </section>
 
   <div class="hr" aria-hidden="true"></div>
