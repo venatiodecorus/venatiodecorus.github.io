@@ -42,6 +42,7 @@ enableEmoji = true
   sitename = "venatio.dev"
   defaultColor = "dark"
   description = "Personal site and blog"
+  ogimage = "/images/og-default.png"
   mainSections = ['posts']
   toc = true
   tocOpen = false

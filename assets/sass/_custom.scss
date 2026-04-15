@@ -350,6 +350,19 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
 // -- article --------------------------------------------------------------
 
 .article {
+  &__hero {
+    margin: 0 0 1.5rem;
+
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border: 1px solid $c-border-hi;
+      border-radius: 6px;
+      margin: 0;
+    }
+  }
+
   &__head {
     margin-bottom: 2rem;
     border-bottom: 1px solid rgba(200, 194, 180, 0.2);

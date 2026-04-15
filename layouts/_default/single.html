@@ -1,6 +1,12 @@
 {{ define "main" }}
 <main class="page-content">
   <article class="article">
+    {{- with .Params.image }}
+    <figure class="article__hero">
+      <img src="{{ . | absURL }}" alt="{{ $.Title }}">
+    </figure>
+    {{- end }}
+
     <header class="article__head">
       <h1>{{ .Title }}</h1>
       {{ with .Date }}
