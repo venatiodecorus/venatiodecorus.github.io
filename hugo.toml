@@ -33,6 +33,11 @@ enableEmoji = true
     url = '/posts/'
     weight = 20
   [[Languages.en-us.menu.main]]
+    pageRef="services"
+    name = 'Services'
+    url = '/services/'
+    weight = 25
+  [[Languages.en-us.menu.main]]
     pageRef="about"
     name = 'About'
     url = '/about/'
