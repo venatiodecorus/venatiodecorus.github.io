@@ -2,7 +2,10 @@
 date = '2026-04-17T03:08:36-04:00'
 draft = false
 title = 'k8s to Docker Migration'
+description = 'After months of dealing with a frustrating cluster, I finally decided to migrate away from Kubernetes and switch to a simpler Docker-based setup. Here’s how it went.'
 image = 'images/tf-docker.png'
+bluesky = 'https://bsky.app/profile/venatio.dev/post/3mjp7ulycok24'
+mastodon = 'https://mstdn.social/@venatio/116420717558933173'
 +++
 
 ## The Situation
