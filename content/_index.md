@@ -2,9 +2,9 @@
 title = 'Home'
 
 [[socials]]
-platform = "twitter"
+platform = "github"
 handle = "@venatiodecorus"
-url = "https://x.com/venatiodecorus"
+url = "https://github.com/venatiodecorus"
 
 [[socials]]
 platform = "bluesky"
@@ -17,9 +17,9 @@ handle = "@venatio@mstdn.social"
 url = "https://mstdn.social/@venatio"
 
 [[socials]]
-platform = "github"
+platform = "twitter"
 handle = "@venatiodecorus"
-url = "https://github.com/venatiodecorus"
+url = "https://x.com/venatiodecorus"
 +++
 
 Exploring ideas through code, math, and visualization. 
