@@ -413,6 +413,19 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
     li { margin: 0.2rem 0; }
     a  { color: $c-fg-dim; &:hover { color: $c-accent; } }
   }
+
+  &__backtotop {
+    margin-top: 2rem;
+    text-align: right;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+
+    a {
+      color: $c-fg-dim;
+      text-decoration: none;
+      &:hover { color: $c-accent; text-decoration: none; }
+    }
+  }
 }
 
 // -- prose (markdown body) ------------------------------------------------

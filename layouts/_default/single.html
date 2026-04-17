@@ -24,6 +24,12 @@
     <div class="article__body prose">
       {{ .Content }}
     </div>
+
+    {{- if eq .Section "posts" }}
+    <nav class="article__backtotop" aria-label="Back to top">
+      <a href="#">^ back to top</a>
+    </nav>
+    {{- end }}
   </article>
 
   {{- partial "comments.html" . -}}
