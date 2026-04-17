@@ -13,7 +13,7 @@
     {{- with $mastodon }} data-mastodon="{{ . }}"{{ end }}
     {{- if $demo }} data-demo="true"{{ end }}
   >
-    <p class="comments__loading">loading comments&hellip;</p>
+    <p class="comments__loading" hidden>loading comments&hellip;</p>
   </div>
 
   <noscript>
@@ -26,7 +26,7 @@
   </noscript>
 
   {{- if or $bluesky $mastodon }}
-  <p class="comments__cta">
+  <p class="comments__cta" hidden>
     Reply on
     {{- if $bluesky }} <a href="{{ $bluesky }}" target="_blank" rel="noopener noreferrer">Bluesky</a>{{ end }}
     {{- if and $bluesky $mastodon }} or{{ end }}
@@ -34,5 +34,14 @@
     to join the conversation.
   </p>
   {{- end }}
+
+  <script>
+    (function () {
+      var c = document.getElementById('comments');
+      if (!c) return;
+      var els = c.querySelectorAll('.comments__loading, .comments__cta');
+      for (var i = 0; i < els.length; i++) els[i].hidden = false;
+    })();
+  </script>
 </section>
 {{- end }}
