@@ -26,6 +26,9 @@
     <meta name="twitter:card" content="summary" />
     {{- end }}
 
+    {{- /* Preload self-hosted JetBrains Mono (used for code blocks) */ -}}
+    <link rel="preload" href="/fonts/JetBrainsMono-Regular.woff2" as="font" type="font/woff2" crossorigin>
+
     {{- /* Styles */ -}}
 
     {{- $style := resources.Get "sass/main.scss" | resources.ExecuteAsTemplate "style.scss" . | toCSS (dict "targetPath" "style.css") | minify | fingerprint }}

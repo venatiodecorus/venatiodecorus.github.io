@@ -8,9 +8,20 @@
 
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
 
+// Self-hosted JetBrains Mono (Regular only) for code blocks.
+// File lives in /static/fonts/ and is served from /fonts/ at runtime.
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+}
+
 // -- tokens ---------------------------------------------------------------
 
 $mono:        'IBM Plex Mono', 'Menlo', 'Consolas', monospace;
+$mono-code:   'JetBrains Mono', 'IBM Plex Mono', 'Menlo', 'Consolas', monospace;
 $col-max:     682px;
 $col-pad:     1.5rem;
 
@@ -353,12 +364,14 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   &__hero {
     margin: 0 0 1.5rem;
 
-    img {
+    // Scoped under .page-content to match the theme's
+    // `.page-content figure img` specificity (0,2,1) and win by source order.
+    .page-content & img {
       display: block;
       width: 100%;
       height: auto;
       border: 1px solid $c-border-hi;
-      border-radius: 6px;
+      border-radius: 10px;
       margin: 0;
     }
   }
@@ -430,7 +443,7 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   em { font-style: italic; }
 
   code {
-    font-family: $mono;
+    font-family: $mono-code;
     font-size: 0.9em;
     background: rgba(255, 255, 255, 0.04);
     padding: 0.1em 0.35em;
