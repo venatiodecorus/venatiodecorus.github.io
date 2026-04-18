@@ -198,3 +198,5 @@ hugo mod tidy
 ```
 
 After updating, check that overridden partials (especially `head.html`) are still compatible with the new theme version.
+
+:)
