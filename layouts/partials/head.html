@@ -32,12 +32,18 @@
     <link rel="preload" href="/fonts/IBMPlexMono-Medium.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/fonts/JetBrainsMono-Regular.woff2" as="font" type="font/woff2" crossorigin>
 
-    {{- /* Styles */ -}}
-
-    {{- $style := resources.Get "sass/main.scss" | resources.ExecuteAsTemplate "style.scss" . | toCSS (dict "targetPath" "style.css") | minify | fingerprint }}
+    {{- /* Styles: concat main SCSS (compiled to CSS) with the theme's
+           code-highlight stylesheet so the browser makes a single request. */ -}}
+    {{- $mainCss := resources.Get "sass/main.scss" | resources.ExecuteAsTemplate "style.scss" . | toCSS (dict "targetPath" "main-pre.css") -}}
+    {{- $highlightCss := resources.Get "code-highlight.css" -}}
+    {{- $style := slice $mainCss $highlightCss | resources.Concat "style.css" | minify | fingerprint }}
     <link href="{{ $style.RelPermalink }}" rel="stylesheet">
-    {{- $code_syntax_highlight_css := resources.Get "code-highlight.css" | minify | fingerprint }}
-    <link href="{{ $code_syntax_highlight_css.RelPermalink }}" rel="stylesheet">
+
+    {{- /* Inline the theme init script. It's ~1KB and must run before paint
+           to set the dark/light class without a FOUC; inlining avoids a
+           render-blocking request in <head>. */ -}}
+    {{- $themeScript := resources.Get "js/theme.js" | minify -}}
+    <script>{{ $themeScript.Content | safeJS }}</script>
 
     {{/* Favicons */}}
     <link rel="apple-touch-icon" sizes="180x180" href="{{ (resources.Get "icons/apple-touch-icon.png").RelPermalink }}">
