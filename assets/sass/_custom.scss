@@ -6,6 +6,10 @@
 // Mid-column layout (~620px). Dark, warm, slightly worn.
 // ==========================================================================
 
+// Syntax highlighting (Catppuccin Mocha). Imported here so it lands after
+// the theme's _code.scss in source order and wins on matching selectors.
+@import "syntax-catppuccin-mocha";
+
 // Self-hosted fonts. Files live in /static/fonts/ and are served from
 // /fonts/ at runtime. Latin subset only (U+0000-00FF + common punctuation);
 // non-Latin characters fall back to the platform monospace stack.

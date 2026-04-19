@@ -1,0 +1,138 @@
+// ==========================================================================
+// Catppuccin Mocha syntax highlighting.
+//
+// Generated with:
+//   hugo gen chromastyles --style=catppuccin-mocha --omitClassComments
+//
+// Imported from _custom.scss so it loads after the theme's _code.scss and
+// wins on source order. Rules are scoped under .highlight to raise specificity
+// above the bundled theme scheme (which also uses .highlight .xx selectors).
+// See https://catppuccin.com/palette/ for the palette.
+// ==========================================================================
+
+// Container (the .chroma class sits on <pre> inside .highlight)
+.highlight .chroma,
+.highlight pre.chroma {
+    color: #cdd6f4;
+    background-color: #1e1e2e;
+    -webkit-text-size-adjust: none;
+}
+
+// Code element inside <pre>: theme hardcodes `pre > code { color: white }`,
+// override so token colors can show through on untokenised text.
+.highlight pre.chroma > code,
+.highlight pre > code {
+    color: #cdd6f4;
+}
+
+// Base text / whitespace
+.highlight .chroma,
+.highlight .chroma .w {
+    color: #cdd6f4;
+}
+
+// Error
+.highlight .chroma .err { color: #f38ba8; }
+
+// Line number helpers
+.highlight .chroma .lnlinks  { outline: none; text-decoration: none; color: inherit; }
+.highlight .chroma .lntd     { vertical-align: top; padding: 0; margin: 0; border: 0; }
+.highlight .chroma .lntable  { border-spacing: 0; padding: 0; margin: 0; border: 0; }
+.highlight .chroma .hl       { background-color: #45475a; }
+.highlight .chroma .lnt,
+.highlight .chroma .ln {
+    white-space: pre;
+    user-select: none;
+    -webkit-user-select: none;
+    margin-right: 0.4em;
+    padding: 0 0.4em;
+    color: #7f849c;
+}
+.highlight .chroma .line { display: flex; }
+
+// Keywords
+.highlight .chroma .k  { color: #cba6f7; }
+.highlight .chroma .kc { color: #fab387; }
+.highlight .chroma .kd { color: #f38ba8; }
+.highlight .chroma .kn { color: #94e2d5; }
+.highlight .chroma .kp { color: #cba6f7; }
+.highlight .chroma .kr { color: #cba6f7; }
+.highlight .chroma .kt { color: #f38ba8; }
+
+// Names
+.highlight .chroma .na { color: #89b4fa; }
+.highlight .chroma .nc { color: #f9e2af; }
+.highlight .chroma .no { color: #f9e2af; }
+.highlight .chroma .nd { color: #89b4fa; font-weight: bold; }
+.highlight .chroma .ni { color: #94e2d5; }
+.highlight .chroma .ne { color: #fab387; }
+.highlight .chroma .nl { color: #89dceb; }
+.highlight .chroma .nn { color: #fab387; }
+.highlight .chroma .py { color: #fab387; }
+.highlight .chroma .nt { color: #cba6f7; }
+.highlight .chroma .nb { color: #89dceb; }
+.highlight .chroma .bp { color: #89dceb; }
+.highlight .chroma .nv,
+.highlight .chroma .vc,
+.highlight .chroma .vg,
+.highlight .chroma .vi,
+.highlight .chroma .vm { color: #f5e0dc; }
+.highlight .chroma .nf,
+.highlight .chroma .fm { color: #89b4fa; }
+
+// Strings
+.highlight .chroma .s,
+.highlight .chroma .sb,
+.highlight .chroma .sc,
+.highlight .chroma .s2,
+.highlight .chroma .si,
+.highlight .chroma .sx,
+.highlight .chroma .s1,
+.highlight .chroma .ss { color: #a6e3a1; }
+.highlight .chroma .sa { color: #f38ba8; }
+.highlight .chroma .dl { color: #89b4fa; }
+.highlight .chroma .sd,
+.highlight .chroma .sh { color: #6c7086; }
+.highlight .chroma .se { color: #89b4fa; }
+.highlight .chroma .sr { color: #94e2d5; }
+
+// Numbers
+.highlight .chroma .m,
+.highlight .chroma .mb,
+.highlight .chroma .mf,
+.highlight .chroma .mh,
+.highlight .chroma .mi,
+.highlight .chroma .il,
+.highlight .chroma .mo { color: #fab387; }
+
+// Operators
+.highlight .chroma .o,
+.highlight .chroma .ow { color: #89dceb; font-weight: bold; }
+
+// Comments
+.highlight .chroma .c,
+.highlight .chroma .cm,
+.highlight .chroma .c1,
+.highlight .chroma .cs,
+.highlight .chroma .cp { color: #6c7086; font-style: italic; }
+.highlight .chroma .ch { color: #585b70; font-style: italic; }
+.highlight .chroma .cpf { color: #6c7086; font-weight: bold; font-style: italic; }
+
+// Generic (diffs, headings, etc.)
+.highlight .chroma .gd { color: #f38ba8; background-color: #313244; }
+.highlight .chroma .ge { font-style: italic; }
+.highlight .chroma .gr { color: #f38ba8; }
+.highlight .chroma .gh { color: #fab387; font-weight: bold; }
+.highlight .chroma .gi { color: #a6e3a1; background-color: #313244; }
+.highlight .chroma .gs { font-weight: bold; }
+.highlight .chroma .gu { color: #fab387; font-weight: bold; }
+.highlight .chroma .gt { color: #f38ba8; }
+.highlight .chroma .gl { text-decoration: underline; }
+
+// Match the <pre> surround to the mocha base so the whole block reads as
+// one surface instead of two-tone. Overrides _code.scss pre background.
+.prose pre,
+.highlight > pre,
+.highlight pre.chroma {
+    background-color: #1e1e2e;
+}
