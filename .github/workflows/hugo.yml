@@ -1,9 +1,16 @@
 name: Deploy Hugo site to Pages
 
-on:
-  push:
-    branches: ["main"]
-  workflow_dispatch:
+# DISABLED: venatio.dev is now built and deployed by Cloudflare Pages,
+# which hooks directly into pushes to `main`. This workflow is retained
+# as a reference/template in case we ever need to fall back to GitHub
+# Pages. To re-enable, restore the `push` and/or `workflow_dispatch`
+# triggers below.
+#
+# on:
+#   push:
+#     branches: ["main"]
+#   workflow_dispatch:
+on: {}
 
 permissions:
   contents: read
