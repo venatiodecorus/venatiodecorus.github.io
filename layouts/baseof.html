@@ -36,6 +36,12 @@
         {{- if .Site.Params.waveBackground.enabled }}
         <span class="foot__right foot__bg">
           <a id="bg-link" href="https://en.wikipedia.org/wiki/Wave_interference" target="_blank" rel="noopener noreferrer"><span id="bg-label">wave interference</span></a>
+          <span class="foot__picker" id="bg-picker-wrap">
+            <button type="button" id="bg-picker-btn" class="foot__picker-btn" aria-label="Choose background" aria-haspopup="true" aria-expanded="false" title="Choose background">
+              {{ partial "svgs/list.svg" (dict "height" 12 "width" 12) . }}
+            </button>
+            <div id="bg-picker-popup" class="foot__picker-popup" role="menu" aria-hidden="true"></div>
+          </span>
           <a id="bg-shuffle" class="foot__shuffle" href="#" aria-label="Random background" title="Random background">
             {{ partial "svgs/shuffle.svg" (dict "height" 12 "width" 12) . }}
           </a>

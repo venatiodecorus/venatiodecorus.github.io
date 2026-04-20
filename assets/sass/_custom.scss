@@ -749,6 +749,98 @@ html.wave-paused #wave-toggle .wave-pause {
     }
 }
 
+.foot__picker {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.foot__picker-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    padding: 0.1rem;
+    margin: 0;
+    color: $c-fg-dim;
+    opacity: 0.35;
+    cursor: pointer;
+    transition:
+        opacity 0.15s,
+        color 0.15s;
+
+    &:hover,
+    &[aria-expanded="true"] {
+        opacity: 1;
+        color: $c-accent;
+    }
+}
+
+.foot__picker-popup {
+    position: absolute;
+    bottom: calc(100% + 0.5rem);
+    right: 0;
+    min-width: 12rem;
+    padding: 0.3rem 0;
+    background: rgba(14, 16, 15, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid $c-border-hi;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    font-size: 11px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(4px);
+    transition:
+        opacity 0.12s,
+        transform 0.12s,
+        visibility 0.12s;
+    z-index: 50;
+
+    &.is-open {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+}
+
+.foot__picker-item {
+    display: block;
+    width: 100%;
+    padding: 0.35rem 0.8rem;
+    background: transparent;
+    border: 0;
+    color: $c-fg-dim;
+    opacity: 0.7;
+    font: inherit;
+    text-align: left;
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition:
+        opacity 0.12s,
+        color 0.12s,
+        background 0.12s;
+
+    &:hover {
+        opacity: 1;
+        color: $c-accent;
+        background: rgba($c-accent, 0.06);
+    }
+
+    &.is-current {
+        color: $c-accent2;
+        opacity: 1;
+
+        &::before {
+            content: "› ";
+            color: $c-accent2;
+        }
+    }
+}
+
 // -- comments -------------------------------------------------------------
 
 .comments {
