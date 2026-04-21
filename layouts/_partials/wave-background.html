@@ -1672,6 +1672,306 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   }
 
   // ======================================================================
+  // Animation 10: Galaxy Field
+  // ======================================================================
+
+  function createGalaxyField() {
+    const VERT = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+    const FRAG = `
+      precision highp float;
+      uniform vec2  uRes;
+      uniform float uTime;
+      uniform vec2  uCam;
+
+      const float PI  = 3.14159265;
+      const float TAU = 6.28318530;
+
+      vec3 h3(vec2 p) {
+        return fract(sin(vec3(dot(p, vec2(127.1, 311.7)),
+                              dot(p, vec2(269.5, 183.3)),
+                              dot(p, vec2(419.2, 371.9)))) * 43758.5453);
+      }
+      vec2 h2(vec2 p) {
+        return fract(sin(vec2(dot(p, vec2(127.1, 311.7)),
+                              dot(p, vec2(269.5, 183.3)))) * 43758.5453);
+      }
+
+      vec2 rot2(vec2 p, float a) {
+        float c = cos(a), s = sin(a);
+        return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
+      }
+
+      // Galaxy colour lookup: warm golds, cool blues, oranges, near-whites.
+      vec3 galCol(float t) {
+        t = fract(t);
+        if (t < 0.22) return vec3(1.00, 0.84, 0.46);
+        if (t < 0.42) return vec3(0.62, 0.80, 1.00);
+        if (t < 0.58) return vec3(1.00, 0.66, 0.28);
+        if (t < 0.74) return vec3(0.92, 0.95, 1.00);
+        if (t < 0.88) return vec3(0.40, 0.58, 1.00);
+                       return vec3(1.00, 0.52, 0.38);
+      }
+
+      // 2-arm log-spiral; uses atan+log only after a distance pre-check.
+      vec2 spiralGal(vec2 lp, float phase, float tight, float nArms, float armW) {
+        float r = length(lp);
+        if (r > 2.2) return vec2(0.0);
+        float bulge = exp(-r * r * 14.0) + exp(-r * 4.5) * 0.10;
+        if (r < 0.04) return vec2(0.0, bulge);
+        float period  = TAU / nArms;
+        float d       = mod(atan(lp.y, lp.x) - log(r) * tight - phase, period);
+        float angDist = min(d, period - d);
+        float arms    = exp(-angDist * angDist * r * r * armW) * exp(-r * 1.15);
+        return vec2(arms, bulge);
+      }
+
+      float ellipGal(vec2 lp, float q) {
+        float r = length(vec2(lp.x, lp.y / max(q, 0.22)));
+        return r < 2.2 ? exp(-r * 3.3) : 0.0;
+      }
+
+      float edgeGal(vec2 lp, float elong) {
+        if (abs(lp.x) > elong + 0.3 || abs(lp.y) > 0.65) return 0.0;
+        float cross_ = exp(-lp.y * lp.y * 22.0);
+        float extent = exp(-lp.x * lp.x / (elong * elong * 0.42));
+        float dust   = 1.0 - 0.55 * exp(-lp.y * lp.y * 280.0);
+        float bulge  = exp(-dot(lp, lp) * 9.0) * 0.35;
+        return cross_ * extent * dust + bulge;
+      }
+
+      // Lenticular / inclined-disk galaxy.
+      float lenticularGal(vec2 lp, float q) {
+        vec2  s = vec2(lp.x, lp.y / max(q, 0.12));
+        float r = length(s);
+        if (r > 2.4) return 0.0;
+        float disk = exp(-r * 2.8);
+        float nuc  = exp(-r * r * 10.0) * 0.55;
+        float limb = exp(-(r - 1.5) * (r - 1.5) * 8.0) * 0.08;
+        return disk + nuc + limb;
+      }
+
+      // Bright foreground star with HST-style diffraction spikes.
+      float starSpike(vec2 dp) {
+        float d2   = dot(dp, dp);
+        float core = exp(-d2 * 4500.0) * 1.5;
+        float sa   = 8800.0, sb = 58.0;
+        float s1   = exp(-dp.y * dp.y * sa) * exp(-dp.x * dp.x * sb);
+        float s2   = exp(-dp.x * dp.x * sa) * exp(-dp.y * dp.y * sb);
+        vec2  dp45 = vec2(dp.x + dp.y, dp.x - dp.y) * 0.707;
+        float s3   = exp(-dp45.y * dp45.y * sa) * exp(-dp45.x * dp45.x * sb) * 0.52;
+        float s4   = exp(-dp45.x * dp45.x * sa) * exp(-dp45.y * dp45.y * sb) * 0.52;
+        return core + (s1 + s2 + s3 + s4) * 0.46;
+      }
+
+      void main() {
+        vec2  uv     = gl_FragCoord.xy / uRes;
+        float aspect = uRes.x / uRes.y;
+        vec2  uvA    = vec2(uv.x * aspect, uv.y);
+        vec2  sc     = uvA + uCam;
+
+        vec3 col = vec3(0.0, 0.0, 0.003);
+
+        // LAYER 1-A: fine background, scale=28, 3x3 neighbour check.
+        {
+          float S = 28.0;
+          vec2  c0 = floor(sc * S), f0 = fract(sc * S);
+          for (int iy = -1; iy <= 1; iy++) {
+            for (int ix = -1; ix <= 1; ix++) {
+              vec2 nb  = vec2(float(ix), float(iy));
+              vec3 hh  = h3(c0 + nb);
+              vec2 ctr = nb + hh.yz;
+              vec2 dp  = f0 - ctr;
+              float lum = pow(hh.x, 3.5);
+              col += galCol(hh.z) * exp(-dot(dp, dp) * 72.0) * lum * 0.65;
+            }
+          }
+        }
+
+        // LAYER 1-B: coarser background, scale=17.
+        {
+          float S = 17.0;
+          vec2  c0 = floor(sc * S), f0 = fract(sc * S);
+          for (int iy = -1; iy <= 1; iy++) {
+            for (int ix = -1; ix <= 1; ix++) {
+              vec2 nb  = vec2(float(ix), float(iy));
+              vec3 hh  = h3(c0 + nb + 71.3);
+              vec2 ctr = nb + hh.yz;
+              vec2 dp  = f0 - ctr;
+              float lum = pow(hh.x, 4.0);
+              col += galCol(hh.z + 0.28) * exp(-dot(dp, dp) * 38.0) * lum * 0.55;
+            }
+          }
+        }
+
+        // LAYER 2: medium galaxies — ellipticals, edge-on disks, small spirals.
+        {
+          float S = 9.0;
+          vec2  c0 = floor(sc * S), f0 = fract(sc * S);
+          for (int iy = -1; iy <= 1; iy++) {
+            for (int ix = -1; ix <= 1; ix++) {
+              vec2 nb   = vec2(float(ix), float(iy));
+              vec2 cell = c0 + nb;
+              vec3 ha   = h3(cell + 53.7);
+              if (ha.x < 0.50) {
+                vec2  cf    = h2(cell + 29.1) * 0.76 + 0.12;
+                float scale = 0.10 + ha.y * 0.11;
+                vec2  delta = f0 - nb - cf;
+                if (length(delta) < scale * 2.8) {
+                  vec2  lp = rot2(delta / scale, ha.z * TAU);
+                  float gb;
+                  vec3  gc;
+                  if (ha.x < 0.30) {
+                    // Approximate spiral (no atan): two rotated stretched gaussians.
+                    vec2 a1 = rot2(lp, ha.z * 2.0);
+                    vec2 a2 = rot2(lp, ha.z * 2.0 + PI);
+                    float arms = (exp(-a1.x * a1.x * 5.0 - a1.y * a1.y * 26.0) +
+                                  exp(-a2.x * a2.x * 5.0 - a2.y * a2.y * 26.0)) * 0.55
+                               * exp(-length(lp) * 1.2);
+                    float bulge = exp(-dot(lp, lp) * 13.0);
+                    gb = arms + bulge;
+                    gc = mix(vec3(0.98, 0.82, 0.46), vec3(0.58, 0.78, 1.00),
+                             arms / (arms + bulge + 0.001));
+                  } else if (ha.x < 0.72) {
+                    gb = ellipGal(lp, 0.30 + ha.y * 0.70);
+                    gc = mix(vec3(1.00, 0.86, 0.50), vec3(0.98, 0.70, 0.28), ha.y);
+                  } else {
+                    gb = edgeGal(lp, 1.5 + ha.y * 2.0);
+                    gc = mix(vec3(0.98, 0.86, 0.53), vec3(0.56, 0.72, 1.00), ha.z * 0.45);
+                  }
+                  col += gc * gb * 0.42 * (0.48 + ha.y * 0.52);
+                }
+              }
+            }
+          }
+        }
+
+        // LAYER 3: large foreground galaxies.
+        {
+          float S = 3.4;
+          vec2  c0 = floor(sc * S), f0 = fract(sc * S);
+          for (int iy = -1; iy <= 1; iy++) {
+            for (int ix = -1; ix <= 1; ix++) {
+              vec2 nb   = vec2(float(ix), float(iy));
+              vec2 cell = c0 + nb;
+              vec3 ha   = h3(cell + 7.4);
+              vec3 hb   = h3(cell + 81.3);
+              if (ha.x < 0.62) {
+                vec2  cf    = hb.xy * 0.72 + 0.14;
+                float scale = 0.17 + ha.y * 0.20;
+                vec2  delta = f0 - nb - cf;
+                if (length(delta) < scale * 2.6) {
+                  vec2  lp = rot2(delta / scale, hb.z * TAU);
+                  vec3  gc = vec3(1.0);
+                  float gb = 0.0;
+                  if (ha.x < 0.38) {
+                    // Spiral
+                    float v1    = fract(ha.z * 7.31 + hb.x * 3.17);
+                    float v2    = fract(hb.y * 5.73 + ha.y * 2.91);
+                    float nArms = floor(v1 * 2.85) + 1.0;
+                    float tight = 0.48 + v2 * 1.55;
+                    float armW  = 8.0 + fract(v1 + v2) * 20.0;
+                    float rotRate = 0.000095 + v1 * 0.000175;
+                    float phase = hb.z * TAU - uTime * rotRate;
+                    vec2  ag    = spiralGal(lp, phase, tight, nArms, armW);
+                    gb = ag.x * 0.86 + ag.y + 0.03;
+                    vec3 armC = mix(vec3(0.50, 0.74, 1.00), vec3(0.86, 0.93, 1.00), v2);
+                    gc = mix(vec3(0.98, 0.83, 0.44), armC, ag.x / (ag.x + ag.y + 0.001));
+                  } else if (ha.x < 0.54) {
+                    // Elliptical
+                    gb = ellipGal(lp, 0.40 + hb.y * 0.60) * 1.08;
+                    gc = mix(vec3(1.00, 0.87, 0.50), vec3(0.98, 0.70, 0.26), ha.y);
+                  } else if (ha.x < 0.76) {
+                    // Lenticular / inclined disk
+                    float q = 0.15 + hb.y * 0.50;
+                    gb = lenticularGal(lp, q) * 1.05;
+                    gc = mix(vec3(1.00, 0.90, 0.58), vec3(0.95, 0.78, 0.40), ha.y);
+                  } else {
+                    // Edge-on disk
+                    gb = edgeGal(lp, 2.0 + hb.y * 2.8) * 1.20;
+                    gc = mix(vec3(0.98, 0.87, 0.54), vec3(0.56, 0.74, 1.00), hb.z * 0.5);
+                  }
+                  col += gc * gb * 0.54 * (0.50 + hb.x * 0.50);
+                }
+              }
+            }
+          }
+        }
+
+        // LAYER 4: bright foreground stars with diffraction spikes.
+        {
+          float S = 2.2;
+          vec2  c0 = floor(sc * S), f0 = fract(sc * S);
+          for (int iy = -1; iy <= 1; iy++) {
+            for (int ix = -1; ix <= 1; ix++) {
+              vec2 nb   = vec2(float(ix), float(iy));
+              vec2 cell = c0 + nb;
+              vec3 ha   = h3(cell + 33.1);
+              if (ha.x < 0.24) {
+                vec2 ctr = nb + h2(cell + 55.7) * 0.78 + 0.11;
+                vec2 dp  = (f0 - ctr) / S;
+                float sb = starSpike(dp);
+                float dl = length(dp);
+                vec3 sc3 = ha.y < 0.52
+                  ? mix(vec3(0.80, 0.90, 1.00), vec3(1.00, 1.00, 1.00), ha.z)
+                  : mix(vec3(1.00, 0.92, 0.68), vec3(1.00, 0.62, 0.30), ha.z);
+                col += sc3 * sb * 0.68;
+                float tip = exp(-dl * dl * 52.0);
+                col += vec3(0.25, 0.55, 1.00) * sb * tip * 0.18
+                     + vec3(1.00, 0.28, 0.10) * sb * tip * 0.06;
+              }
+            }
+          }
+        }
+
+        float vig = 1.0 - smoothstep(0.28, 0.84, length(uv - 0.5) * 1.65);
+        col = mix(col * 0.18, col, vig);
+
+        gl_FragColor = vec4(min(col, vec3(1.0)), 1.0);
+      }
+    `;
+
+    var program = null;
+    var u = {};
+
+    return {
+      id: 'galaxy-field',
+      label: 'galaxy field',
+      url: 'https://en.wikipedia.org/wiki/Hubble_Deep_Field',
+
+      init: function() {
+        program = buildProgram(VERT, FRAG);
+        if (!program) return false;
+        gl.useProgram(program);
+        bindQuad(program);
+        u = {
+          res:  gl.getUniformLocation(program, 'uRes'),
+          time: gl.getUniformLocation(program, 'uTime'),
+          cam:  gl.getUniformLocation(program, 'uCam')
+        };
+        return true;
+      },
+
+      render: function(elapsed) {
+        gl.useProgram(program);
+        bindQuad(program);
+        // Camera pan derived from elapsed seconds. Uses `elapsed` (not
+        // performance.now) so pausing freezes the camera correctly — the
+        // render loop already holds `elapsed` constant while paused.
+        var s = elapsed * 0.001;
+        gl.uniform2f(u.res, width, height);
+        gl.uniform1f(u.time, elapsed);
+        gl.uniform2f(u.cam, s * 0.0055, s * 0.0019);
+        drawQuad();
+      },
+
+      destroy: function() {
+        if (program) { gl.deleteProgram(program); program = null; }
+      }
+    };
+  }
+
+  // ======================================================================
   // Animation Registry
   // ======================================================================
 
@@ -1684,7 +1984,8 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
     createMagneticFieldLines,
     createBZReaction,
     createDoubleSlit,
-    createChladniFigures
+    createChladniFigures,
+    createGalaxyField
   ];
 
   // Persist choice in sessionStorage so it survives page navigation
