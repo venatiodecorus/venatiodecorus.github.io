@@ -71,7 +71,9 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   let currentAnimationId = null;
 
   function resize() {
-    const dpr = window.devicePixelRatio || 1;
+    // Cap DPR at 2: beyond that the fragment count balloons with no
+    // perceptible visual gain for these full-screen shader animations.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     width  = Math.floor(window.innerWidth  * dpr);
     height = Math.floor(window.innerHeight * dpr);
     canvas.width  = width;
@@ -276,23 +278,25 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   // ======================================================================
 
   function createTerrainFlythrough() {
-    // 3/4-angle perspective of a scrolling heightmap rendered as contour
-    // lines — a topographic map the camera flies over. Pure fragment shader.
-    // Uses a procedural noise heightmap with layered octaves, sliced into
-    // contour bands and drawn with grid lines for the digital look.
+    // Proper 3D raymarched heightfield flythrough:
+    // camera at elevation moving forward along +Z, per-pixel rays marched
+    // against an fbm heightmap. Surface is shaded by elevation + slope
+    // (Lambert against a fixed sun), overlaid with contour lines and a
+    // world-space grid projected onto the terrain. Distance fog blends
+    // into a sky gradient for a proper horizon.
 
     const VERT = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
 
     const FRAG = `
+      #extension GL_OES_standard_derivatives : enable
       precision highp float;
       uniform vec2  uRes;
       uniform float uTime;
 
-      // --- simple value noise (no deps) ---
+      // --- value noise ---
       float hash(vec2 p) {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
       }
-
       float noise(vec2 p) {
         vec2 i = floor(p);
         vec2 f = fract(p);
@@ -303,74 +307,176 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
         float d = hash(i + vec2(1.0, 1.0));
         return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
       }
-
-      float fbm(vec2 p) {
+      // 3-octave fbm — cheap version used inside the raymarch loop.
+      float fbm3(vec2 p) {
         float v = 0.0;
         float a = 0.5;
-        vec2 shift = vec2(100.0);
-        for (int i = 0; i < 5; i++) {
-          v += a * noise(p);
-          p = p * 2.0 + shift;
-          a *= 0.5;
+        float norm = 0.0;
+        for (int i = 0; i < 3; i++) {
+          v    += a * noise(p);
+          norm += a;
+          p     = p * 2.03 + vec2(37.1, 17.7);
+          a    *= 0.5;
         }
-        return v;
+        return v / norm;
+      }
+      // 5-octave fbm — used only for shading the final hit (detail).
+      float fbm5(vec2 p) {
+        float v = 0.0;
+        float a = 0.5;
+        float norm = 0.0;
+        for (int i = 0; i < 5; i++) {
+          v    += a * noise(p);
+          norm += a;
+          p     = p * 2.03 + vec2(37.1, 17.7);
+          a    *= 0.5;
+        }
+        return v / norm;
+      }
+
+      // Low-detail terrain used while marching: just enough to find the hit.
+      float terrainLo(vec2 p) {
+        float base   = fbm3(p * 0.18);
+        float ridges = 1.0 - abs(fbm3(p * 0.42) * 2.0 - 1.0);
+        return base * 0.85 + ridges * base * 0.55;
+      }
+      // Full-detail terrain used at the hit point for normals/contours.
+      float terrain(vec2 p) {
+        float base   = fbm5(p * 0.18);
+        float ridges = 1.0 - abs(fbm5(p * 0.42) * 2.0 - 1.0);
+        float detail = fbm3(p * 1.50) * 0.08;
+        return base * 0.85 + ridges * base * 0.55 + detail;
+      }
+
+      // Analytic-ish normal from finite differences.
+      vec3 terrainNormal(vec2 p, float eps) {
+        float hL = terrain(p - vec2(eps, 0.0));
+        float hR = terrain(p + vec2(eps, 0.0));
+        float hD = terrain(p - vec2(0.0, eps));
+        float hU = terrain(p + vec2(0.0, eps));
+        return normalize(vec3(hL - hR, 2.0 * eps, hD - hU));
+      }
+
+      // Raymarch the heightfield using the cheap low-detail terrain.
+      // Returns t of the first hit, or -1 if the ray escapes.
+      float raymarchTerrain(vec3 ro, vec3 rd) {
+        float t    = 0.5;
+        float tMax = 45.0;
+        for (int i = 0; i < 64; i++) {
+          vec3 p = ro + rd * t;
+          float h = terrainLo(p.xz);
+          float diff = p.y - h;
+          // Hit tolerance scales with t to avoid pixel shimmer far away.
+          if (diff < 0.005 * t) return t;
+          // Step grows with distance for cheap far-field coverage.
+          float step = max(0.06 + t * 0.025, diff * 0.6);
+          t += step;
+          if (t > tMax) break;
+        }
+        return -1.0;
+      }
+
+      // Elevation-based color band: water → lowlands → mid → rock → snow.
+      vec3 terrainColor(float h, float slope) {
+        // Palette tuned to feel like the existing teal/deep-blue look.
+        vec3 water   = vec3(0.020, 0.055, 0.090);
+        vec3 shore   = vec3(0.065, 0.135, 0.170);
+        vec3 grass   = vec3(0.085, 0.285, 0.235);
+        vec3 forest  = vec3(0.110, 0.420, 0.345);
+        vec3 rock    = vec3(0.230, 0.265, 0.260);
+        vec3 snow    = vec3(0.820, 0.880, 0.900);
+
+        vec3 col;
+        if (h < 0.22)      col = mix(water, shore,  smoothstep(0.10, 0.22, h));
+        else if (h < 0.40) col = mix(shore, grass,  smoothstep(0.22, 0.40, h));
+        else if (h < 0.62) col = mix(grass, forest, smoothstep(0.40, 0.62, h));
+        else if (h < 0.82) col = mix(forest, rock,  smoothstep(0.62, 0.82, h));
+        else               col = mix(rock,   snow,  smoothstep(0.82, 1.00, h));
+
+        // Steep slopes expose rock regardless of elevation.
+        float rockMix = smoothstep(0.55, 0.85, slope);
+        col = mix(col, rock * 0.85, rockMix * step(0.18, h));
+        return col;
       }
 
       void main() {
-        vec2 uv = gl_FragCoord.xy / uRes;
+        vec2 uv  = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
 
-        // --- 3/4 perspective projection ---
-        // Map screen Y to depth (z), screen X to world X
-        // Bottom of screen = near, top = far
-        float depth = 1.0 / (1.05 - uv.y * 0.95);   // perspective divisor
-        float worldX = (uv.x - 0.5) * depth * 2.5;
-        float worldZ = depth * 4.0 + uTime * 0.0004;  // camera moves forward
+        // --- Camera ---------------------------------------------------------
+        float camSpeed = 0.0012;
+        float zOffset  = uTime * camSpeed;
+        // Fixed altitude — comfortably above the tallest peaks (~1.4) so
+        // peaks pass under the camera rather than bobbing up into view.
+        vec3  ro       = vec3(0.0, 1.8, zOffset);
 
-        vec2 worldPos = vec2(worldX, worldZ);
+        // Look slightly downward toward the horizon.
+        float pitch = -0.18;
+        vec3 fwd   = normalize(vec3(0.0, sin(pitch), cos(pitch)));
+        vec3 right = vec3(1.0, 0.0, 0.0);
+        vec3 up    = normalize(cross(fwd, right));
+        // Narrow-ish FOV feels more cinematic and masks step artifacts.
+        vec3 rd = normalize(fwd + right * uv.x * 1.1 + up * uv.y * 1.1);
 
-        // --- terrain height ---
-        float h = fbm(worldPos * 0.35) * 1.0;
+        // --- Sky ------------------------------------------------------------
+        // Dark atmospheric gradient: deep indigo at zenith → warm near horizon.
+        vec3 skyZenith  = vec3(0.008, 0.012, 0.028);
+        vec3 skyHorizon = vec3(0.065, 0.095, 0.150);
+        float skyT = clamp(rd.y * 2.2, 0.0, 1.0);
+        vec3 sky = mix(skyHorizon, skyZenith, skyT);
+        // Faint sun glow near the horizon in the view direction.
+        vec3 sunDir = normalize(vec3(0.35, 0.25, 0.90));
+        float sunDot = max(dot(rd, sunDir), 0.0);
+        sky += vec3(0.20, 0.28, 0.32) * pow(sunDot, 32.0) * 0.45;
 
-        // --- contour lines ---
-        float contourSpacing = 0.08;
-        float contour = fract(h / contourSpacing);
-        // Sharpen the contour line edge
-        float lineWidth = 0.06;
-        float contourLine = 1.0 - smoothstep(0.0, lineWidth, contour)
-                               - (1.0 - smoothstep(1.0 - lineWidth, 1.0, contour));
-        contourLine = clamp(contourLine, 0.0, 1.0);
+        // --- Terrain hit ----------------------------------------------------
+        float t = raymarchTerrain(ro, rd);
 
-        // --- grid lines for digital look ---
-        float gridScale = 0.5;
-        vec2 grid = abs(fract(worldPos * gridScale) - 0.5);
-        float gridLine = 1.0 - smoothstep(0.0, 0.03, min(grid.x, grid.y));
-        gridLine *= 0.15;
+        vec3 col;
+        if (t < 0.0) {
+          col = sky;
+        } else {
+          vec3 hit = ro + rd * t;
+          // Normal epsilon scales with distance to match the implicit LOD of marching.
+          float nEps = max(0.015, t * 0.008);
+          vec3 n = terrainNormal(hit.xz, nEps);
 
-        // --- color: warm topographic palette, height-based ---
-        vec3 lowColor  = vec3(0.02, 0.03, 0.05);    // deep dark blue
-        vec3 midColor  = vec3(0.06, 0.10, 0.18);    // muted blue
-        vec3 highColor = vec3(0.11, 0.55, 0.42);    // teal/green peak
+          float slope = 1.0 - n.y;            // 0 = flat, 1 = vertical
+          float h = hit.y;
 
-        vec3 baseColor = h < 0.4
-          ? mix(lowColor, midColor, h / 0.4)
-          : mix(midColor, highColor, clamp((h - 0.4) / 0.6, 0.0, 1.0));
+          // --- Lighting: sun + sky fill ---
+          float sunLight = max(dot(n, sunDir), 0.0);
+          float skyLight = 0.5 + 0.5 * n.y;   // hemispherical ambient
+          vec3 base = terrainColor(h, slope);
+          vec3 lit  = base * (sunLight * 0.75 + skyLight * 0.45);
 
-        // Contour lines are brighter
-        vec3 lineColor = vec3(0.15, 0.65, 0.50);    // teal line glow
-        vec3 gridColor = vec3(0.05, 0.20, 0.18);
+          // --- Contour lines (follow actual surface) ---
+          float contourSpacing = 0.12;
+          float cPhase = fract(h / contourSpacing);
+          float cLine  = 1.0 - smoothstep(0.00, 0.07, cPhase)
+                             - (1.0 - smoothstep(0.93, 1.00, cPhase));
+          cLine = clamp(cLine, 0.0, 1.0);
+          vec3 contourCol = vec3(0.35, 0.78, 0.62);
+          lit = mix(lit, contourCol, cLine * 0.22);
 
-        vec3 col = baseColor;
-        col = mix(col, lineColor, contourLine * 0.6);
-        col += gridColor * gridLine;
+          // --- World-space grid projected onto the surface ---
+          vec2 gridUV = hit.xz * 0.75;
+          vec2 gridD  = abs(fract(gridUV) - 0.5);
+          // Anti-aliased line width using fwidth for clean lines at any distance.
+          vec2 gridW  = fwidth(gridUV) * 1.1;
+          vec2 gridL  = smoothstep(gridW, vec2(0.0), gridD);
+          float grid  = max(gridL.x, gridL.y);
+          vec3 gridCol = vec3(0.10, 0.35, 0.30);
+          lit += gridCol * grid * 0.18;
 
-        // --- distance fog ---
-        float fog = 1.0 - exp(-0.15 * (depth - 1.0));
-        fog = clamp(fog, 0.0, 1.0);
-        vec3 fogColor = vec3(0.012, 0.016, 0.028);
-        col = mix(col, fogColor, fog);
+          // --- Distance fog into sky ---
+          float fog = 1.0 - exp(-0.040 * t);
+          fog = clamp(fog, 0.0, 1.0);
+          col = mix(lit, sky, fog);
+        }
 
-        // Slight brightness based on depth (nearer = brighter)
-        col *= mix(1.0, 0.3, fog);
+        // Subtle vignette to keep edges from dominating.
+        float vig = 1.0 - smoothstep(0.55, 1.25, length(uv) * 1.1);
+        col *= 0.45 + 0.55 * vig;
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -385,6 +491,8 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
       url: 'https://en.wikipedia.org/wiki/Digital_elevation_model',
 
       init: function() {
+        // Enable derivatives for fwidth()-based grid anti-aliasing.
+        gl.getExtension('OES_standard_derivatives');
         program = buildProgram(VERT, FRAG);
         if (!program) return false;
         gl.useProgram(program);
@@ -1345,6 +1453,225 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
   }
 
   // ======================================================================
+  // Animation 8: Double-Slit Interference
+  // ======================================================================
+
+  function createDoubleSlit() {
+    const VERT = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+    const FRAG = `
+      precision highp float;
+      uniform vec2  uRes;
+      uniform float uTime;
+
+      void main() {
+        vec2  uv     = gl_FragCoord.xy / uRes;
+        float aspect = uRes.x / uRes.y;
+        vec2  p      = vec2((uv.x - 0.5) * aspect, uv.y - 0.5) * 2.0;
+
+        // Slowly evolving parameters
+        float s     = uTime * 0.000048;
+        float d     = 0.26 + 0.10 * sin(s * 0.37);
+        float kWave = 15.5 + 4.0  * sin(s * 0.28);
+        float phi   = uTime * 0.00110;
+
+        // Coupled source orbit
+        float orb   = s * 0.19;
+        vec2  ctr   = vec2(cos(orb * 0.71) * 0.09, sin(orb) * 0.055);
+        float axAng = orb * 0.44;
+        vec2  axis  = vec2(sin(axAng), cos(axAng));
+        vec2  s1    = ctr + axis *  d;
+        vec2  s2    = ctr - axis *  d;
+
+        float r1  = length(p - s1);
+        float r2  = length(p - s2);
+        float eps = 0.05;
+
+        // Time-averaged intensity
+        float dr   = r1 - r2;
+        float avgI = 0.5 / max(r1, eps)
+                   + 0.5 / max(r2, eps)
+                   + cos(kWave * dr) / sqrt(max(r1 * r2, eps * eps));
+        avgI = max(avgI, 0.0);
+
+        // Instantaneous ripple
+        float psi  = sin(kWave * r1 - phi) / sqrt(max(r1, eps))
+                   + sin(kWave * r2 - phi) / sqrt(max(r2, eps));
+
+        float I = avgI * 0.66 + psi * psi * 0.34;
+
+        // Linear tone map — destructive troughs stay genuinely dark so the
+        // full gradient is visible. Peaks cap at electric cyan, not white.
+        float rMid = length(p - ctr);
+        I *= 0.17 / (1.0 + rMid * rMid * 0.50);
+        float bright = clamp(I, 0.0, 1.0);
+
+        // Four-stop palette: deep navy -> indigo -> steel -> cyan
+        vec3 c0 = vec3(0.004, 0.007, 0.020);
+        vec3 c1 = vec3(0.012, 0.048, 0.170);
+        vec3 c2 = vec3(0.038, 0.195, 0.620);
+        vec3 c3 = vec3(0.065, 0.480, 0.900);
+        vec3 c4 = vec3(0.110, 0.700, 0.980);
+
+        float t4 = bright * 4.0;
+        vec3  col;
+        if      (t4 < 1.0) col = mix(c0, c1, t4);
+        else if (t4 < 2.0) col = mix(c1, c2, t4 - 1.0);
+        else if (t4 < 3.0) col = mix(c2, c3, t4 - 2.0);
+        else               col = mix(c3, c4, t4 - 3.0);
+
+        // Slit source glows (subdued so they don't flare)
+        col += vec3(0.10, 0.38, 0.90) * exp(-r1 * 11.0) * 0.75;
+        col += vec3(0.10, 0.38, 0.90) * exp(-r2 * 11.0) * 0.75;
+        col += vec3(0.02, 0.09, 0.28) * exp(-r1 *  3.5) * 0.18;
+        col += vec3(0.02, 0.09, 0.28) * exp(-r2 *  3.5) * 0.18;
+
+        float vig = 1.0 - smoothstep(0.58, 1.06, length(p * vec2(1.0 / aspect, 1.0)));
+        col *= vig * 0.80;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    var program = null;
+    var u = {};
+
+    return {
+      id: 'double-slit',
+      label: 'double-slit interference',
+      url: 'https://en.wikipedia.org/wiki/Double-slit_experiment',
+
+      init: function() {
+        program = buildProgram(VERT, FRAG);
+        if (!program) return false;
+        gl.useProgram(program);
+        bindQuad(program);
+        u = {
+          res:  gl.getUniformLocation(program, 'uRes'),
+          time: gl.getUniformLocation(program, 'uTime')
+        };
+        return true;
+      },
+
+      render: function(elapsed) {
+        gl.useProgram(program);
+        bindQuad(program);
+        gl.uniform2f(u.res, width, height);
+        gl.uniform1f(u.time, elapsed);
+        drawQuad();
+      },
+
+      destroy: function() {
+        if (program) { gl.deleteProgram(program); program = null; }
+      }
+    };
+  }
+
+  // ======================================================================
+  // Animation 9: Chladni Figures
+  // ======================================================================
+
+  function createChladniFigures() {
+    const VERT = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+    const FRAG = `
+      precision highp float;
+      uniform vec2  uRes;
+      uniform float uTime;
+
+      const float PI = 3.14159265358979;
+
+      // Chladni displacement for a square plate, modes m and n.
+      // The antisymmetric combination produces the canonical nodal patterns.
+      float chladni(vec2 p, float m, float n) {
+        return cos(m * PI * p.x) * cos(n * PI * p.y)
+             - cos(n * PI * p.x) * cos(m * PI * p.y);
+      }
+
+      void main() {
+        vec2  uv     = gl_FragCoord.xy / uRes;
+        float aspect = uRes.x / uRes.y;
+        vec2  p      = vec2((uv.x - 0.5) * aspect, uv.y - 0.5) * 2.0;
+
+        // Slowly evolving, incommensurate mode numbers so the path through
+        // (m, n) space never repeats. Range roughly [1.2, 5.8].
+        float s = uTime * 0.000065;
+        float m = 2.2 + 1.6 * sin(s * 0.613) + 0.85 * sin(s * 1.414)
+                      + 0.30 * sin(s * 2.236);
+        float n = 2.2 + 1.6 * cos(s * 0.732) + 0.85 * cos(s * 1.234)
+                      + 0.30 * cos(s * 1.891);
+
+        // Primary plate mode + low-weight overtone for fine internal structure.
+        float Z0 = chladni(p, m, n);
+        float Z1 = chladni(p, m + 2.0, n + 2.0);
+        float Z  = Z0 * 0.82 + Z1 * 0.18;
+
+        // Gaussian-profile nodal lines + softer outer halo for the "sand
+        // grain" falloff you see in real Chladni plates.
+        float nodal = exp(-Z * Z * 52.0);
+        float halo  = exp(-Z * Z * 10.0) * 0.22;
+
+        // Subtle antinode tinting to reveal standing-wave phase structure.
+        float posAmp = clamp( Z0, 0.0, 1.0);
+        float negAmp = clamp(-Z0, 0.0, 1.0);
+
+        vec3 bg     = vec3(0.008, 0.006, 0.010);
+        vec3 nColor = vec3(0.96, 0.72, 0.22);   // amber-gold nodal lines
+        vec3 posCol = vec3(0.06, 0.04, 0.12);   // faint indigo
+        vec3 negCol = vec3(0.10, 0.05, 0.03);   // faint burnt umber
+
+        vec3 col = bg;
+        col += posCol * posAmp * posAmp * 0.35;
+        col += negCol * negAmp * negAmp * 0.35;
+        col += nColor * halo;
+        col += nColor * nodal * 0.92;
+
+        // Circular vignette — mirrors the boundary of a real Chladni plate.
+        float r   = length(p * vec2(1.0 / aspect, 1.0));
+        float vig = 1.0 - smoothstep(0.62, 1.10, r);
+        col *= vig;
+
+        col *= 0.78;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    var program = null;
+    var u = {};
+
+    return {
+      id: 'chladni-figures',
+      label: 'chladni figures',
+      url: 'https://en.wikipedia.org/wiki/Chladni_figures',
+
+      init: function() {
+        program = buildProgram(VERT, FRAG);
+        if (!program) return false;
+        gl.useProgram(program);
+        bindQuad(program);
+        u = {
+          res:  gl.getUniformLocation(program, 'uRes'),
+          time: gl.getUniformLocation(program, 'uTime')
+        };
+        return true;
+      },
+
+      render: function(elapsed) {
+        gl.useProgram(program);
+        bindQuad(program);
+        gl.uniform2f(u.res, width, height);
+        gl.uniform1f(u.time, elapsed);
+        drawQuad();
+      },
+
+      destroy: function() {
+        if (program) { gl.deleteProgram(program); program = null; }
+      }
+    };
+  }
+
+  // ======================================================================
   // Animation Registry
   // ======================================================================
 
@@ -1355,7 +1682,9 @@ html.wave-paused #wave-toggle .wave-pause { display: none; }
     createAlchemicalRunes,
     createJuliaFractal,
     createMagneticFieldLines,
-    createBZReaction
+    createBZReaction,
+    createDoubleSlit,
+    createChladniFigures
   ];
 
   // Persist choice in sessionStorage so it survives page navigation
