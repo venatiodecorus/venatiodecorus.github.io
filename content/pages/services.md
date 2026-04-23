@@ -8,3 +8,4 @@ toc = false
 I maintain a few services that are available for public access.
 
 - [SearXNG](https://searxng.venatio.dev) - A privacy respecting search aggregator.
+- [Multiposter](https://multiposter.venatio.dev) - A tool to post to multiple social media platforms at once. All credentials are stored in your own browser.
